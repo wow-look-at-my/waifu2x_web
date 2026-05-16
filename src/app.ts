@@ -1,4 +1,4 @@
-import { Waifu2x } from './waifu2x';
+import { Waifu2x, type TimingData } from './waifu2x';
 
 const MODELS: Record<string, string> = {
     'none': 'models/scale2x.bin',
@@ -27,6 +27,7 @@ const modelProgress = $<HTMLDivElement>('model-progress-fill');
 const initSection = $<HTMLDivElement>('init-section');
 const controlsSection = $<HTMLDivElement>('controls-section');
 const dimInfo = $<HTMLSpanElement>('dim-info');
+const timingSection = $<HTMLDivElement>('timing-section');
 
 let waifu2x: Waifu2x;
 let loadedModelKey = '';
@@ -122,25 +123,27 @@ processBtn.addEventListener('click', async () => {
     progressSection.hidden = false;
     downloadBtn.hidden = true;
     previewSection.hidden = true;
+    timingSection.hidden = true;
     progressBar.style.width = '0%';
-
-    const start = performance.now();
     statusText.textContent = 'Upscaling...';
 
     try {
-        const result = await waifu2x.process(sourceImage, ratio => {
+        const { canvas, timing } = await waifu2x.process(sourceImage, ratio => {
             progressBar.style.width = `${(ratio * 100).toFixed(0)}%`;
             const pct = (ratio * 100).toFixed(0);
             statusText.textContent = `Upscaling... ${pct}%`;
         });
 
-        const elapsed = ((performance.now() - start) / 1000).toFixed(1);
+        const elapsed = (timing.totalMs / 1000).toFixed(1);
         statusText.textContent = `Done in ${elapsed}s.`;
         progressBar.style.width = '100%';
 
+        timingSection.textContent = formatTiming(timing);
+        timingSection.hidden = false;
+
         if (resultBlobUrl) URL.revokeObjectURL(resultBlobUrl);
 
-        result.toBlob(blob => {
+        canvas.toBlob(blob => {
             if (!blob) return;
             resultBlobUrl = URL.createObjectURL(blob);
             afterImg.src = resultBlobUrl;
@@ -169,5 +172,25 @@ compSlider.addEventListener('input', () => {
     const pct = parseInt(compSlider.value, 10);
     afterWrap.style.clipPath = `inset(0 ${100 - pct}% 0 0)`;
 });
+
+function formatTiming(t: TimingData): string {
+    const fmt = (label: string, ms: number) => {
+        const val = ms.toFixed(1) + ' ms';
+        return label.padEnd(20) + val.padStart(10);
+    };
+    const lines = [
+        `Timing breakdown (${t.tileCount} tile${t.tileCount !== 1 ? 's' : ''})`,
+        fmt('Mirror padding:', t.mirrorPadMs),
+        fmt('Tile extract (avg):', t.tileExtractMs),
+    ];
+    for (let i = 0; i < t.convLayerMs.length; i++) {
+        lines.push(fmt(`Conv L${i} (avg):`, t.convLayerMs[i]));
+    }
+    lines.push(fmt('Deconv (avg):', t.deconvMs));
+    lines.push(fmt('Readback (avg):', t.readbackMs));
+    lines.push(fmt('Stitch (avg):', t.stitchMs));
+    lines.push(fmt('Total:', t.totalMs));
+    return lines.join('\n');
+}
 
 boot();

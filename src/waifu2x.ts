@@ -10,6 +10,22 @@ interface LayerMeta {
     biasTex: WebGLTexture | null;
 }
 
+export interface TimingData {
+    totalMs: number;
+    mirrorPadMs: number;
+    tileCount: number;
+    tileExtractMs: number;
+    convLayerMs: number[];
+    deconvMs: number;
+    readbackMs: number;
+    stitchMs: number;
+}
+
+export interface ProcessResult {
+    canvas: HTMLCanvasElement;
+    timing: TimingData;
+}
+
 export class Waifu2x {
     private gl: WebGL2RenderingContext;
     private programs: { conv?: WebGLProgram; deconv?: WebGLProgram } = {};
@@ -72,7 +88,8 @@ export class Waifu2x {
     async process(
         inputImage: HTMLImageElement | HTMLCanvasElement,
         onProgress?: (ratio: number) => void,
-    ): Promise<HTMLCanvasElement> {
+    ): Promise<ProcessResult> {
+        const totalStart = performance.now();
         const model = this.model!;
         const srcW = inputImage.width;
         const srcH = inputImage.height;
@@ -89,7 +106,10 @@ export class Waifu2x {
 
         const padW = tilesX * STRIDE + 2 * BORDER;
         const padH = tilesY * STRIDE + 2 * BORDER;
+
+        const padStart = performance.now();
         const paddedCanvas = this.createPadded(inputImage, padW, padH, BORDER);
+        const mirrorPadMs = performance.now() - padStart;
 
         const outputCanvas = document.createElement('canvas');
         outputCanvas.width = outW;
@@ -104,29 +124,44 @@ export class Waifu2x {
         const cropEdge = (deconvOutputSize - STRIDE * 2) >> 1;
 
         let processed = 0;
+        let sumExtract = 0;
+        const sumConv: number[] = new Array(convLayers).fill(0);
+        let sumDeconv = 0;
+        let sumReadback = 0;
+        let sumStitch = 0;
 
         for (let ty = 0; ty < tilesY; ty++) {
             for (let tx = 0; tx < tilesX; tx++) {
                 const sx = tx * STRIDE;
                 const sy = ty * STRIDE;
 
+                let t0 = performance.now();
                 const tileCanvas = document.createElement('canvas');
                 tileCanvas.width = TILE;
                 tileCanvas.height = TILE;
                 const tctx = tileCanvas.getContext('2d')!;
                 tctx.drawImage(paddedCanvas, sx, sy, TILE, TILE, 0, 0, TILE, TILE);
+                sumExtract += performance.now() - t0;
 
-                const result = this.processTile(tileCanvas);
+                const tile = this.processTileTimed(tileCanvas);
 
+                for (let i = 0; i < tile.convLayerMs.length; i++) {
+                    sumConv[i] += tile.convLayerMs[i];
+                }
+                sumDeconv += tile.deconvMs;
+                sumReadback += tile.readbackMs;
+
+                t0 = performance.now();
                 const outX = tx * STRIDE * 2;
                 const outY = ty * STRIDE * 2;
                 const drawW = Math.min(STRIDE * 2, outW - outX);
                 const drawH = Math.min(STRIDE * 2, outH - outY);
 
                 if (drawW > 0 && drawH > 0) {
-                    octx.drawImage(result, cropEdge, cropEdge, drawW, drawH,
+                    octx.drawImage(tile.canvas, cropEdge, cropEdge, drawW, drawH,
                         outX, outY, drawW, drawH);
                 }
+                sumStitch += performance.now() - t0;
 
                 processed++;
                 if (onProgress) onProgress(processed / totalTiles);
@@ -134,7 +169,21 @@ export class Waifu2x {
             }
         }
 
-        return outputCanvas;
+        const totalMs = performance.now() - totalStart;
+
+        return {
+            canvas: outputCanvas,
+            timing: {
+                totalMs,
+                mirrorPadMs,
+                tileCount: totalTiles,
+                tileExtractMs: sumExtract / totalTiles,
+                convLayerMs: sumConv.map(t => t / totalTiles),
+                deconvMs: sumDeconv / totalTiles,
+                readbackMs: sumReadback / totalTiles,
+                stitchMs: sumStitch / totalTiles,
+            },
+        };
     }
 
     private createPadded(
@@ -174,7 +223,12 @@ export class Waifu2x {
         return pad;
     }
 
-    private processTile(tileCanvas: HTMLCanvasElement): HTMLCanvasElement {
+    private processTileTimed(tileCanvas: HTMLCanvasElement): {
+        canvas: HTMLCanvasElement;
+        convLayerMs: number[];
+        deconvMs: number;
+        readbackMs: number;
+    } {
         const gl = this.gl;
         const model = this.model!;
         const tileW = tileCanvas.width;
@@ -189,20 +243,34 @@ export class Waifu2x {
         let gridCols = 1;
         let numGroups = 1;
 
+        const convLayerMs: number[] = [];
+        let deconvMs = 0;
+        let readbackMs = 0;
+
         for (let li = 0; li < model.length; li++) {
             const layer = model[li];
 
             if (layer.isDeconv) {
                 const outW = (cellW - 1) * 2 + layer.kW;
                 const outH = (cellH - 1) * 2 + layer.kH;
+
+                gl.finish();
+                let t0 = performance.now();
                 const { tex, fbo } = this.runDeconv(
                     inputTex, layer, cellW, cellH, gridCols, numGroups, outW, outH,
                 );
+                gl.finish();
+                deconvMs = performance.now() - t0;
+
                 gl.deleteTexture(inputTex);
+
+                t0 = performance.now();
                 const resultCanvas = this.readToCanvas(fbo, outW, outH);
+                readbackMs = performance.now() - t0;
+
                 gl.deleteTexture(tex);
                 gl.deleteFramebuffer(fbo);
-                return resultCanvas;
+                return { canvas: resultCanvas, convLayerMs, deconvMs, readbackMs };
             }
 
             const outCellW = cellW - 2;
@@ -213,11 +281,15 @@ export class Waifu2x {
             const outTexW = outGridCols * outCellW;
             const outTexH = outGridRows * outCellH;
 
+            gl.finish();
+            const t0 = performance.now();
             const outTex = this.runConv(
                 inputTex, layer,
                 cellW, cellH, gridCols, numGroups,
                 outCellW, outCellH, outGridCols, outNumGroups, outTexW, outTexH,
             );
+            gl.finish();
+            convLayerMs.push(performance.now() - t0);
 
             gl.deleteTexture(inputTex);
             inputTex = outTex;
@@ -227,7 +299,7 @@ export class Waifu2x {
             numGroups = outNumGroups;
         }
 
-        return document.createElement('canvas');
+        return { canvas: document.createElement('canvas'), convLayerMs, deconvMs, readbackMs };
     }
 
     private runConv(
