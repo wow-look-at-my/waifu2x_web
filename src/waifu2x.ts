@@ -19,6 +19,7 @@ export interface TimingData {
     deconvMs: number;
     readbackMs: number;
     stitchMs: number;
+    yieldMs: number;
 }
 
 export interface ProcessResult {
@@ -129,6 +130,7 @@ export class Waifu2x {
         let sumDeconv = 0;
         let sumReadback = 0;
         let sumStitch = 0;
+        let sumYield = 0;
 
         for (let ty = 0; ty < tilesY; ty++) {
             for (let tx = 0; tx < tilesX; tx++) {
@@ -165,7 +167,9 @@ export class Waifu2x {
 
                 processed++;
                 if (onProgress) onProgress(processed / totalTiles);
+                const yieldStart = performance.now();
                 await new Promise(r => setTimeout(r, 0));
+                sumYield += performance.now() - yieldStart;
             }
         }
 
@@ -182,6 +186,7 @@ export class Waifu2x {
                 deconvMs: sumDeconv / totalTiles,
                 readbackMs: sumReadback / totalTiles,
                 stitchMs: sumStitch / totalTiles,
+                yieldMs: sumYield,
             },
         };
     }

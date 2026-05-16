@@ -189,6 +189,7 @@ function formatTiming(t: TimingData): string {
     lines.push(fmt('Deconv (avg):', t.deconvMs));
     lines.push(fmt('Readback (avg):', t.readbackMs));
     lines.push(fmt('Stitch (avg):', t.stitchMs));
+    lines.push(fmt('Yield overhead:', t.yieldMs));
     lines.push(fmt('Total:', t.totalMs));
     return lines.join('\n');
 }
