@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy"
+          content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' blob: data:; connect-src 'self'; font-src 'self';">
+    <title>waifu2x - Client-Side Image Upscaler</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <canvas id="gl-canvas" width="1" height="1" hidden></canvas>
+
+    <header>
+        <h1>waifu2x</h1>
+        <p class="subtitle">Client-side 2x image upscaling powered by WebGL2</p>
+    </header>
+
+    <main>
+        <div id="init-section">
+            <div class="progress-bar-track">
+                <div class="progress-bar-fill" id="model-progress-fill"></div>
+            </div>
+        </div>
+
+        <div id="controls-section" hidden>
+            <div id="drop-zone">
+                <div class="drop-icon">&#x1F5BC;</div>
+                <div>Drop image here or click to select</div>
+                <input type="file" id="file-input" accept="image/*" hidden>
+            </div>
+
+            <div class="options-row">
+                <label>
+                    Noise reduction
+                    <select id="noise-level">
+                        <option value="none">None (upscale only)</option>
+                        <option value="1">Low</option>
+                        <option value="2" selected>Medium</option>
+                        <option value="3">High</option>
+                    </select>
+                </label>
+                <span id="dim-info"></span>
+            </div>
+
+            <div class="action-row">
+                <button id="process-btn" disabled>Upscale 2x</button>
+                <button id="download-btn" hidden>Download PNG</button>
+            </div>
+
+            <div id="progress-section" hidden>
+                <div class="progress-bar-track">
+                    <div class="progress-bar-fill" id="progress-fill"></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="status-text">Loading...</div>
+
+        <div id="preview-section" hidden>
+            <div class="comparison">
+                <div class="comp-label-row">
+                    <span>Original</span>
+                    <input type="range" id="comp-slider" min="0" max="100" value="100">
+                    <span>Upscaled</span>
+                </div>
+                <div class="comp-container">
+                    <img id="before-img" alt="Original">
+                    <div id="after-wrap">
+                        <img id="after-img" alt="Upscaled">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer>
+        All processing runs locally in your browser. No data leaves this page.
+    </footer>
+
+    <script type="module" src="js/app.js"></script>
+</body>
+</html>
