@@ -177,12 +177,12 @@ export class Waifu2x {
                 totalMs,
                 mirrorPadMs,
                 tileCount: totalTiles,
-                tileExtractMs: sumExtract / totalTiles,
-                uploadMs: sumUpload / totalTiles,
-                convLayerMs: sumConv.map(t => t / totalTiles),
-                deconvMs: sumDeconv / totalTiles,
-                readbackMs: sumReadback / totalTiles,
-                stitchMs: sumStitch / totalTiles,
+                tileExtractMs: sumExtract,
+                uploadMs: sumUpload,
+                convLayerMs: sumConv.slice(),
+                deconvMs: sumDeconv,
+                readbackMs: sumReadback,
+                stitchMs: sumStitch,
             },
         };
     }

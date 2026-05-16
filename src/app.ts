@@ -210,15 +210,15 @@ function formatTiming(t: TimingData): string {
     const lines = [
         `Timing breakdown (${t.tileCount} tile${t.tileCount !== 1 ? 's' : ''})`,
         fmt('Mirror padding:', t.mirrorPadMs),
-        fmt('Tile extract (avg):', t.tileExtractMs),
-        fmt('Upload (avg):', t.uploadMs),
+        fmt('Tile extract:', t.tileExtractMs),
+        fmt('Upload:', t.uploadMs),
     ];
     for (let i = 0; i < t.convLayerMs.length; i++) {
-        lines.push(fmt(`Conv L${i} (avg):`, t.convLayerMs[i]));
+        lines.push(fmt(`Conv L${i}:`, t.convLayerMs[i]));
     }
-    lines.push(fmt('Deconv (avg):', t.deconvMs));
-    lines.push(fmt('Readback (avg):', t.readbackMs));
-    lines.push(fmt('Stitch (avg):', t.stitchMs));
+    lines.push(fmt('Deconv:', t.deconvMs));
+    lines.push(fmt('Readback:', t.readbackMs));
+    lines.push(fmt('Stitch:', t.stitchMs));
     lines.push(fmt('Total:', t.totalMs));
     return lines.join('\n');
 }
