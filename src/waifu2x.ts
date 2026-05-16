@@ -15,6 +15,7 @@ export interface TimingData {
     mirrorPadMs: number;
     tileCount: number;
     tileExtractMs: number;
+    uploadMs: number;
     convLayerMs: number[];
     deconvMs: number;
     readbackMs: number;
@@ -125,6 +126,7 @@ export class Waifu2x {
 
         let processed = 0;
         let sumExtract = 0;
+        let sumUpload = 0;
         const sumConv: number[] = new Array(convLayers).fill(0);
         let sumDeconv = 0;
         let sumReadback = 0;
@@ -143,6 +145,7 @@ export class Waifu2x {
 
                 const tile = this.processTileTimed(tileCanvas);
 
+                sumUpload += tile.uploadMs;
                 for (let i = 0; i < tile.convLayerMs.length; i++) {
                     sumConv[i] += tile.convLayerMs[i];
                 }
@@ -175,6 +178,7 @@ export class Waifu2x {
                 mirrorPadMs,
                 tileCount: totalTiles,
                 tileExtractMs: sumExtract / totalTiles,
+                uploadMs: sumUpload / totalTiles,
                 convLayerMs: sumConv.map(t => t / totalTiles),
                 deconvMs: sumDeconv / totalTiles,
                 readbackMs: sumReadback / totalTiles,
@@ -218,6 +222,7 @@ export class Waifu2x {
 
     private processTileTimed(tileCanvas: OffscreenCanvas): {
         canvas: OffscreenCanvas;
+        uploadMs: number;
         convLayerMs: number[];
         deconvMs: number;
         readbackMs: number;
@@ -230,7 +235,12 @@ export class Waifu2x {
         gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, 0);
         gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, 0);
 
+        gl.finish();
+        const uploadStart = performance.now();
         let inputTex = this.texFromCanvas(tileCanvas);
+        gl.finish();
+        const uploadMs = performance.now() - uploadStart;
+
         let cellW = tileW;
         let cellH = tileH;
         let gridCols = 1;
@@ -263,7 +273,7 @@ export class Waifu2x {
 
                 gl.deleteTexture(tex);
                 gl.deleteFramebuffer(fbo);
-                return { canvas: resultCanvas, convLayerMs, deconvMs, readbackMs };
+                return { canvas: resultCanvas, uploadMs, convLayerMs, deconvMs, readbackMs };
             }
 
             const outCellW = cellW - 2;
@@ -292,7 +302,7 @@ export class Waifu2x {
             numGroups = outNumGroups;
         }
 
-        return { canvas: new OffscreenCanvas(0, 0), convLayerMs, deconvMs, readbackMs };
+        return { canvas: new OffscreenCanvas(0, 0), uploadMs, convLayerMs, deconvMs, readbackMs };
     }
 
     private runConv(

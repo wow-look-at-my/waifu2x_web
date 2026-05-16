@@ -211,6 +211,7 @@ function formatTiming(t: TimingData): string {
         `Timing breakdown (${t.tileCount} tile${t.tileCount !== 1 ? 's' : ''})`,
         fmt('Mirror padding:', t.mirrorPadMs),
         fmt('Tile extract (avg):', t.tileExtractMs),
+        fmt('Upload (avg):', t.uploadMs),
     ];
     for (let i = 0; i < t.convLayerMs.length; i++) {
         lines.push(fmt(`Conv L${i} (avg):`, t.convLayerMs[i]));
