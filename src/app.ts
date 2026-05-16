@@ -203,9 +203,11 @@ compSlider.addEventListener('input', () => {
 });
 
 function formatTiming(t: TimingData): string {
+    const total = t.totalMs;
+    const pct = (ms: number) => (ms / total * 100).toFixed(0).padStart(3) + '%';
     const fmt = (label: string, ms: number) => {
         const val = ms.toFixed(1) + ' ms';
-        return label.padEnd(20) + val.padStart(10);
+        return label.padEnd(16) + val.padStart(10) + '  ' + pct(ms);
     };
     const lines = [
         `Timing breakdown (${t.tileCount} tile${t.tileCount !== 1 ? 's' : ''})`,
