@@ -12,6 +12,7 @@ const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as 
 const dropZone = $<HTMLDivElement>('drop-zone');
 const fileInput = $<HTMLInputElement>('file-input');
 const noiseSelect = $<HTMLSelectElement>('noise-level');
+const scaleSelect = $<HTMLSelectElement>('scale-select');
 const processBtn = $<HTMLButtonElement>('process-btn');
 const downloadBtn = $<HTMLButtonElement>('download-btn');
 const progressBar = $<HTMLDivElement>('progress-fill');
@@ -20,18 +21,30 @@ const statusText = $<HTMLDivElement>('status-text');
 const previewSection = $<HTMLDivElement>('preview-section');
 const beforeImg = $<HTMLImageElement>('before-img');
 const afterImg = $<HTMLImageElement>('after-img');
-const compSlider = $<HTMLInputElement>('comp-slider');
-const afterWrap = $<HTMLDivElement>('after-wrap');
 const glCanvas = $<HTMLCanvasElement>('gl-canvas');
 const modelProgress = $<HTMLDivElement>('model-progress-fill');
 const initSection = $<HTMLDivElement>('init-section');
 const controlsSection = $<HTMLDivElement>('controls-section');
 const dimInfo = $<HTMLSpanElement>('dim-info');
+const magnifier = $<HTMLDivElement>('magnifier');
+
+const MAGNIFIER_SIZE = 200;
+const MAGNIFIER_ZOOM = 5;
 
 let waifu2x: Waifu2x;
 let loadedModelKey = '';
 let sourceImage: HTMLImageElement | null = null;
 let resultBlobUrl = '';
+
+function getScale(): number {
+    return parseInt(scaleSelect.value, 10);
+}
+
+function updateDimInfo() {
+    if (!sourceImage) return;
+    const s = getScale();
+    dimInfo.textContent = `${sourceImage.width} x ${sourceImage.height} -> ${sourceImage.width * s} x ${sourceImage.height * s}`;
+}
 
 async function boot() {
     statusText.textContent = 'Initializing WebGL2...';
@@ -81,7 +94,7 @@ function handleFile(file: File) {
     img.onload = () => {
         sourceImage = img;
         beforeImg.src = url;
-        dimInfo.textContent = `${img.width} x ${img.height} -> ${img.width * 2} x ${img.height * 2}`;
+        updateDimInfo();
         processBtn.disabled = false;
         previewSection.hidden = true;
         downloadBtn.hidden = true;
@@ -111,12 +124,20 @@ noiseSelect.addEventListener('change', async () => {
     initSection.hidden = true;
 });
 
+scaleSelect.addEventListener('change', () => {
+    processBtn.textContent = `Upscale ${getScale()}x`;
+    updateDimInfo();
+});
+
 processBtn.addEventListener('click', async () => {
     if (!sourceImage) return;
 
     initSection.hidden = false;
     if (!await loadModelIfNeeded()) return;
     initSection.hidden = true;
+
+    const scale = getScale();
+    const passes = Math.log2(scale);
 
     processBtn.disabled = true;
     progressSection.hidden = false;
@@ -128,11 +149,19 @@ processBtn.addEventListener('click', async () => {
     statusText.textContent = 'Upscaling...';
 
     try {
-        const result = await waifu2x.process(sourceImage, ratio => {
-            progressBar.style.width = `${(ratio * 100).toFixed(0)}%`;
-            const pct = (ratio * 100).toFixed(0);
-            statusText.textContent = `Upscaling... ${pct}%`;
-        });
+        let current: HTMLImageElement | HTMLCanvasElement = sourceImage;
+
+        for (let pass = 0; pass < passes; pass++) {
+            const passOffset = pass / passes;
+            const passScale = 1 / passes;
+            const passLabel = passes > 1 ? ` (pass ${pass + 1}/${passes})` : '';
+
+            current = await waifu2x.process(current, ratio => {
+                const overall = passOffset + ratio * passScale;
+                progressBar.style.width = `${(overall * 100).toFixed(0)}%`;
+                statusText.textContent = `Upscaling${passLabel}... ${(overall * 100).toFixed(0)}%`;
+            });
+        }
 
         const elapsed = ((performance.now() - start) / 1000).toFixed(1);
         statusText.textContent = `Done in ${elapsed}s.`;
@@ -140,14 +169,13 @@ processBtn.addEventListener('click', async () => {
 
         if (resultBlobUrl) URL.revokeObjectURL(resultBlobUrl);
 
+        const result = current as HTMLCanvasElement;
         result.toBlob(blob => {
             if (!blob) return;
             resultBlobUrl = URL.createObjectURL(blob);
             afterImg.src = resultBlobUrl;
             previewSection.hidden = false;
             downloadBtn.hidden = false;
-            compSlider.value = '100';
-            afterWrap.style.clipPath = '';
         }, 'image/png');
     } catch (e) {
         statusText.textContent = `Error: ${(e as Error).message}`;
@@ -161,13 +189,43 @@ downloadBtn.addEventListener('click', () => {
     if (!resultBlobUrl) return;
     const a = document.createElement('a');
     a.href = resultBlobUrl;
-    a.download = 'waifu2x_upscaled.png';
+    a.download = `waifu2x_${getScale()}x.png`;
     a.click();
 });
 
-compSlider.addEventListener('input', () => {
-    const pct = parseInt(compSlider.value, 10);
-    afterWrap.style.clipPath = `inset(0 ${100 - pct}% 0 0)`;
-});
+function initMagnifier(img: HTMLImageElement) {
+    img.addEventListener('mousemove', (e: MouseEvent) => {
+        const rect = img.getBoundingClientRect();
+        const rx = (e.clientX - rect.left) / rect.width;
+        const ry = (e.clientY - rect.top) / rect.height;
+
+        const bgW = img.naturalWidth * MAGNIFIER_ZOOM;
+        const bgH = img.naturalHeight * MAGNIFIER_ZOOM;
+        const bgX = -(rx * bgW - MAGNIFIER_SIZE / 2);
+        const bgY = -(ry * bgH - MAGNIFIER_SIZE / 2);
+
+        magnifier.style.backgroundImage = `url("${img.src}")`;
+        magnifier.style.backgroundSize = `${bgW}px ${bgH}px`;
+        magnifier.style.backgroundPosition = `${bgX}px ${bgY}px`;
+
+        let left = e.clientX + 20;
+        let top = e.clientY - MAGNIFIER_SIZE / 2;
+        if (left + MAGNIFIER_SIZE > window.innerWidth) {
+            left = e.clientX - MAGNIFIER_SIZE - 20;
+        }
+        top = Math.max(4, Math.min(top, window.innerHeight - MAGNIFIER_SIZE - 4));
+
+        magnifier.style.left = `${left}px`;
+        magnifier.style.top = `${top}px`;
+        magnifier.hidden = false;
+    });
+
+    img.addEventListener('mouseleave', () => {
+        magnifier.hidden = true;
+    });
+}
+
+initMagnifier(beforeImg);
+initMagnifier(afterImg);
 
 boot();

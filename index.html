@@ -13,7 +13,7 @@
 
     <header>
         <h1>waifu2x</h1>
-        <p class="subtitle">Client-side 2x image upscaling powered by WebGL2</p>
+        <p class="subtitle">Client-side 2x / 4x image upscaling powered by WebGL2</p>
     </header>
 
     <main>
@@ -40,6 +40,13 @@
                         <option value="3">High</option>
                     </select>
                 </label>
+                <label>
+                    Scale
+                    <select id="scale-select">
+                        <option value="2">2x</option>
+                        <option value="4">4x</option>
+                    </select>
+                </label>
                 <span id="dim-info"></span>
             </div>
 
@@ -56,23 +63,26 @@
         </div>
 
         <div id="status-text">Loading...</div>
+    </main>
 
-        <div id="preview-section" hidden>
-            <div class="comparison">
-                <div class="comp-label-row">
-                    <span>Original</span>
-                    <input type="range" id="comp-slider" min="0" max="100" value="100">
-                    <span>Upscaled</span>
-                </div>
-                <div class="comp-container">
+    <div id="preview-section" hidden>
+        <div class="preview-grid">
+            <div class="preview-col">
+                <div class="preview-label">Original</div>
+                <div class="preview-img-wrap">
                     <img id="before-img" alt="Original">
-                    <div id="after-wrap">
-                        <img id="after-img" alt="Upscaled">
-                    </div>
+                </div>
+            </div>
+            <div class="preview-col">
+                <div class="preview-label">Upscaled</div>
+                <div class="preview-img-wrap">
+                    <img id="after-img" alt="Upscaled">
                 </div>
             </div>
         </div>
-    </main>
+    </div>
+
+    <div id="magnifier" hidden></div>
 
     <footer>
         All processing runs locally in your browser. No data leaves this page.

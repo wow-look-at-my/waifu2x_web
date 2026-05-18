@@ -1,6 +1,6 @@
 # waifu2x_web
 
-Client-side waifu2x 2x image upscaler running entirely in the browser using WebGL2.
+Client-side waifu2x 2x/4x image upscaler running entirely in the browser using WebGL2.
 
 ## Architecture
 
@@ -40,3 +40,6 @@ npm run dev      # dev build with sourcemaps
 - Weights stored as RGBA32F textures for GPU-side lookup
 - Valid convolution (no padding) shrinks spatial dims by 2 per layer
 - Mirror padding applied to input to handle tile borders
+- 4x upscaling runs the 2x model twice (same approach as waifu2x-ncnn-vulkan)
+- Side-by-side preview layout for wide displays (original left, upscaled right)
+- Magnifying glass shows 500% nearest-neighbor zoom on hover over either image
