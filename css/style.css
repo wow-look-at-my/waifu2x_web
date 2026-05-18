@@ -188,6 +188,10 @@ button:disabled {
     cursor: crosshair;
 }
 
+.preview-img-wrap img[hidden] {
+    display: none;
+}
+
 #drop-zone {
     cursor: pointer;
     transition: border-color 0.15s, background 0.15s;
