@@ -32,6 +32,12 @@ npm run build    # production build to build/
 npm run dev      # dev build with sourcemaps
 ```
 
+## Testing with Playwright
+
+Do NOT try to run a local HTTP server and connect Playwright to it -- the browser is network-isolated from the container. Instead, push your branch and the PR preview will deploy to GitHub Pages. Use Playwright to navigate to the deployed preview URL.
+
+Do NOT create pull requests -- the user creates PRs themselves.
+
 ## Key details
 
 - TypeScript compiled and bundled with esbuild
