@@ -94,9 +94,9 @@ function handleFile(file: File) {
     img.onload = () => {
         sourceImage = img;
         beforeImg.src = url;
-        beforeImg.style.display = '';
-        dropContent.style.display = 'none';
-        afterImg.style.display = 'none';
+        beforeImg.classList.remove('is-hidden');
+        dropContent.classList.add('is-hidden');
+        afterImg.classList.add('is-hidden');
         updateDimInfo();
         processBtn.disabled = false;
         downloadBtn.hidden = true;
@@ -144,7 +144,7 @@ processBtn.addEventListener('click', async () => {
     processBtn.disabled = true;
     progressSection.hidden = false;
     downloadBtn.hidden = true;
-    afterImg.style.display = 'none';
+    afterImg.classList.add('is-hidden');
     progressBar.style.width = '0%';
 
     const start = performance.now();
@@ -176,7 +176,7 @@ processBtn.addEventListener('click', async () => {
             if (!blob) return;
             resultBlobUrl = URL.createObjectURL(blob);
             afterImg.src = resultBlobUrl;
-            afterImg.style.display = '';
+            afterImg.classList.remove('is-hidden');
             downloadBtn.hidden = false;
         }, 'image/png');
     } catch (e) {
