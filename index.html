@@ -24,12 +24,6 @@
         </div>
 
         <div id="controls-section" hidden>
-            <div id="drop-zone">
-                <div class="drop-icon">&#x1F5BC;</div>
-                <div>Drop image here or click to select</div>
-                <input type="file" id="file-input" accept="image/*" hidden>
-            </div>
-
             <div class="options-row">
                 <label>
                     Noise reduction
@@ -65,18 +59,23 @@
         <div id="status-text">Loading...</div>
     </main>
 
-    <div id="preview-section" hidden>
+    <div id="preview-section">
         <div class="preview-grid">
             <div class="preview-col">
                 <div class="preview-label">Original</div>
-                <div class="preview-img-wrap">
-                    <img id="before-img" alt="Original">
+                <div class="preview-img-wrap" id="drop-zone">
+                    <div id="drop-content">
+                        <div class="drop-icon">&#x1F5BC;</div>
+                        <div>Drop image here or click to select</div>
+                    </div>
+                    <img id="before-img" alt="Original" hidden>
+                    <input type="file" id="file-input" accept="image/*" hidden>
                 </div>
             </div>
             <div class="preview-col">
                 <div class="preview-label">Upscaled</div>
-                <div class="preview-img-wrap">
-                    <img id="after-img" alt="Upscaled">
+                <div class="preview-img-wrap" id="upscaled-wrap">
+                    <img id="after-img" alt="Upscaled" hidden>
                 </div>
             </div>
         </div>

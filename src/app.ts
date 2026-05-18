@@ -10,6 +10,7 @@ const MODELS: Record<string, string> = {
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
 const dropZone = $<HTMLDivElement>('drop-zone');
+const dropContent = $<HTMLDivElement>('drop-content');
 const fileInput = $<HTMLInputElement>('file-input');
 const noiseSelect = $<HTMLSelectElement>('noise-level');
 const scaleSelect = $<HTMLSelectElement>('scale-select');
@@ -18,7 +19,6 @@ const downloadBtn = $<HTMLButtonElement>('download-btn');
 const progressBar = $<HTMLDivElement>('progress-fill');
 const progressSection = $<HTMLDivElement>('progress-section');
 const statusText = $<HTMLDivElement>('status-text');
-const previewSection = $<HTMLDivElement>('preview-section');
 const beforeImg = $<HTMLImageElement>('before-img');
 const afterImg = $<HTMLImageElement>('after-img');
 const glCanvas = $<HTMLCanvasElement>('gl-canvas');
@@ -94,9 +94,11 @@ function handleFile(file: File) {
     img.onload = () => {
         sourceImage = img;
         beforeImg.src = url;
+        beforeImg.hidden = false;
+        dropContent.hidden = true;
+        afterImg.hidden = true;
         updateDimInfo();
         processBtn.disabled = false;
-        previewSection.hidden = true;
         downloadBtn.hidden = true;
         statusText.textContent = `Loaded ${file.name}. Ready to upscale.`;
     };
@@ -142,7 +144,7 @@ processBtn.addEventListener('click', async () => {
     processBtn.disabled = true;
     progressSection.hidden = false;
     downloadBtn.hidden = true;
-    previewSection.hidden = true;
+    afterImg.hidden = true;
     progressBar.style.width = '0%';
 
     const start = performance.now();
@@ -174,7 +176,7 @@ processBtn.addEventListener('click', async () => {
             if (!blob) return;
             resultBlobUrl = URL.createObjectURL(blob);
             afterImg.src = resultBlobUrl;
-            previewSection.hidden = false;
+            afterImg.hidden = false;
             downloadBtn.hidden = false;
         }, 'image/png');
     } catch (e) {
