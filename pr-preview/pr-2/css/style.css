@@ -1,0 +1,237 @@
+*,
+*::before,
+*::after {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+:root {
+    --bg: #0e0e12;
+    --surface: #18181f;
+    --border: #2a2a35;
+    --text: #e0e0e8;
+    --muted: #888898;
+    --accent: #7c5cbf;
+    --accent-bright: #9b7fe0;
+    --danger: #bf5c5c;
+}
+
+body {
+    font-family: system-ui, -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+header {
+    text-align: center;
+    padding: 2rem 1rem 1rem;
+}
+
+header h1 {
+    font-size: 2rem;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+}
+
+.subtitle {
+    color: var(--muted);
+    font-size: 0.9rem;
+    margin-top: 0.25rem;
+}
+
+main {
+    width: 100%;
+    max-width: 800px;
+    padding: 0 1rem 2rem;
+}
+
+#init-section {
+    text-align: center;
+    padding: 2rem 0;
+}
+
+#drop-zone {
+    border: 2px dashed var(--border);
+    border-radius: 12px;
+    padding: 2.5rem 1rem;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+    color: var(--muted);
+}
+
+#drop-zone:hover,
+#drop-zone.dragover {
+    border-color: var(--accent);
+    background: rgba(124, 92, 191, 0.06);
+}
+
+.drop-icon {
+    font-size: 2.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.options-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-top: 1rem;
+    flex-wrap: wrap;
+}
+
+.options-row label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.9rem;
+}
+
+.options-row select {
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.4rem 0.6rem;
+    font-size: 0.9rem;
+}
+
+#dim-info {
+    font-size: 0.85rem;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+}
+
+.action-row {
+    display: flex;
+    gap: 0.75rem;
+    margin-top: 1rem;
+}
+
+button {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 0.6rem 1.5rem;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+button:hover:not(:disabled) {
+    background: var(--accent-bright);
+}
+
+button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+#download-btn {
+    background: var(--surface);
+    border: 1px solid var(--border);
+}
+
+#download-btn:hover {
+    background: var(--border);
+}
+
+#status-text {
+    margin-top: 0.75rem;
+    font-size: 0.85rem;
+    color: var(--muted);
+}
+
+#timing-section {
+    font-family: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, monospace;
+    font-size: 0.78rem;
+    color: var(--muted);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.75rem 1rem;
+    margin-top: 0.75rem;
+    white-space: pre;
+    line-height: 1.5;
+}
+
+.progress-bar-track {
+    width: 100%;
+    height: 6px;
+    background: var(--surface);
+    border-radius: 3px;
+    margin-top: 0.5rem;
+    overflow: hidden;
+}
+
+.progress-bar-fill {
+    height: 100%;
+    width: 0%;
+    background: var(--accent);
+    border-radius: 3px;
+    transition: width 0.15s;
+}
+
+#progress-section {
+    margin-top: 0.5rem;
+}
+
+.comparison {
+    margin-top: 1.5rem;
+}
+
+.comp-label-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    font-size: 0.85rem;
+    color: var(--muted);
+    margin-bottom: 0.5rem;
+}
+
+#comp-slider {
+    width: 200px;
+    accent-color: var(--accent);
+}
+
+.comp-container {
+    position: relative;
+    width: 100%;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    background: repeating-conic-gradient(#1a1a22 0% 25%, #22222c 0% 50%) 0 0 / 16px 16px;
+}
+
+.comp-container img {
+    display: block;
+    width: 100%;
+    height: auto;
+}
+
+#after-wrap {
+    position: absolute;
+    inset: 0;
+}
+
+#after-wrap img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+footer {
+    text-align: center;
+    padding: 1rem;
+    font-size: 0.8rem;
+    color: var(--muted);
+    margin-top: auto;
+}

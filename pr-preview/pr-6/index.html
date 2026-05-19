@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy"
+          content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' blob: data:; connect-src 'self'; font-src 'self';">
+    <title>waifu2x - Client-Side Image Upscaler</title>
+    <link rel="stylesheet" href="css/style.css?v=6">
+</head>
+<body>
+    <canvas id="gl-canvas" width="1" height="1" hidden></canvas>
+
+    <nav id="toolbar">
+        <h1>waifu2x</h1>
+        <label>
+            Noise reduction
+            <select id="noise-level">
+                <option value="none">None</option>
+                <option value="1">Low</option>
+                <option value="2" selected>Medium</option>
+                <option value="3">High</option>
+            </select>
+        </label>
+        <button id="upscale-2x-btn" disabled>Upscale 2x</button>
+        <button id="upscale-4x-btn" disabled>Upscale 4x</button>
+        <span id="status-text">Loading...</span>
+        <button id="download-btn" class="is-hidden">Download PNG</button>
+    </nav>
+
+    <div id="progress-track" class="progress-bar-track is-hidden">
+        <div class="progress-bar-fill" id="progress-fill"></div>
+    </div>
+
+    <div id="preview-section">
+        <div class="preview-grid">
+            <div class="preview-col">
+                <div class="preview-label">Original</div>
+                <div class="preview-img-wrap" id="drop-zone">
+                    <div id="drop-content">
+                        <div class="drop-icon">&#x1F5BC;</div>
+                        <div>Drop image here or click to select</div>
+                    </div>
+                    <img id="before-img" alt="Original" class="is-hidden">
+                    <input type="file" id="file-input" accept="image/*" hidden>
+                </div>
+            </div>
+            <div class="preview-col">
+                <div class="preview-label">Upscaled</div>
+                <div class="preview-img-wrap" id="upscaled-wrap">
+                    <img id="after-img" alt="Upscaled" class="is-hidden">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="magnifier" class="is-hidden">
+        <div id="mag-original"></div>
+        <div id="mag-upscaled"></div>
+    </div>
+
+    <footer>
+        All processing runs locally in your browser. No data leaves this page.
+    </footer>
+
+    <script type="module" src="js/app.js?v=4"></script>
+<script>(function(){var q=location.search;if(!q)return;document.addEventListener("click",function(e){var a=e.target.closest("a");if(!a)return;var h=a.getAttribute("href");if(!h||h.startsWith("#")||/^[a-z][a-z0-9+.-]*:/i.test(h))return;try{var u=new URL(h,location.href);if(u.origin!==location.origin)return;if(!u.search)u.search=q;a.href=u.pathname+u.search+u.hash}catch(e){}})})();</script></body>
+</html>
