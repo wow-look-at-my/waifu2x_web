@@ -243,15 +243,28 @@ button:disabled {
 
 #magnifier {
     position: fixed;
-    width: 200px;
+    display: flex;
+    width: 400px;
     height: 200px;
-    border-radius: 50%;
+    border-radius: 8px;
     border: 3px solid var(--accent);
     box-shadow: 0 4px 24px rgba(0, 0, 0, 0.6);
     pointer-events: none;
     z-index: 100;
+    overflow: hidden;
+}
+
+#mag-original,
+#mag-upscaled {
+    width: 50%;
+    height: 100%;
     image-rendering: pixelated;
     background-repeat: no-repeat;
+    background-color: var(--surface);
+}
+
+#mag-original {
+    border-right: 1px solid var(--border);
 }
 
 @media (max-width: 800px) {

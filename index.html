@@ -6,7 +6,7 @@
     <meta http-equiv="Content-Security-Policy"
           content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' blob: data:; connect-src 'self'; font-src 'self';">
     <title>waifu2x - Client-Side Image Upscaler</title>
-    <link rel="stylesheet" href="css/style.css?v=4">
+    <link rel="stylesheet" href="css/style.css?v=5">
 </head>
 <body>
     <canvas id="gl-canvas" width="1" height="1" hidden></canvas>
@@ -81,12 +81,15 @@
         </div>
     </div>
 
-    <div id="magnifier" hidden></div>
+    <div id="magnifier" class="is-hidden">
+        <div id="mag-original"></div>
+        <div id="mag-upscaled"></div>
+    </div>
 
     <footer>
         All processing runs locally in your browser. No data leaves this page.
     </footer>
 
-    <script type="module" src="js/app.js?v=2"></script>
+    <script type="module" src="js/app.js?v=3"></script>
 </body>
 </html>

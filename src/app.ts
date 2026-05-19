@@ -27,8 +27,12 @@ const initSection = $<HTMLDivElement>('init-section');
 const controlsSection = $<HTMLDivElement>('controls-section');
 const dimInfo = $<HTMLSpanElement>('dim-info');
 const magnifier = $<HTMLDivElement>('magnifier');
+const magOriginal = $<HTMLDivElement>('mag-original');
+const magUpscaled = $<HTMLDivElement>('mag-upscaled');
 
-const MAGNIFIER_SIZE = 200;
+const MAG_HALF = 200;
+const MAG_W = MAG_HALF * 2;
+const MAG_H = MAG_HALF;
 const MAGNIFIER_ZOOM = 5;
 
 let waifu2x: Waifu2x;
@@ -195,39 +199,48 @@ downloadBtn.addEventListener('click', () => {
     a.click();
 });
 
-function initMagnifier(img: HTMLImageElement) {
-    img.addEventListener('mousemove', (e: MouseEvent) => {
-        const rect = img.getBoundingClientRect();
-        const rx = (e.clientX - rect.left) / rect.width;
-        const ry = (e.clientY - rect.top) / rect.height;
-
-        const bgW = img.naturalWidth * MAGNIFIER_ZOOM;
-        const bgH = img.naturalHeight * MAGNIFIER_ZOOM;
-        const bgX = -(rx * bgW - MAGNIFIER_SIZE / 2);
-        const bgY = -(ry * bgH - MAGNIFIER_SIZE / 2);
-
-        magnifier.style.backgroundImage = `url("${img.src}")`;
-        magnifier.style.backgroundSize = `${bgW}px ${bgH}px`;
-        magnifier.style.backgroundPosition = `${bgX}px ${bgY}px`;
-
-        let left = e.clientX + 20;
-        let top = e.clientY - MAGNIFIER_SIZE / 2;
-        if (left + MAGNIFIER_SIZE > window.innerWidth) {
-            left = e.clientX - MAGNIFIER_SIZE - 20;
-        }
-        top = Math.max(4, Math.min(top, window.innerHeight - MAGNIFIER_SIZE - 4));
-
-        magnifier.style.left = `${left}px`;
-        magnifier.style.top = `${top}px`;
-        magnifier.hidden = false;
-    });
-
-    img.addEventListener('mouseleave', () => {
-        magnifier.hidden = true;
-    });
+function setMagPane(pane: HTMLDivElement, img: HTMLImageElement, rx: number, ry: number) {
+    if (!img.src || img.classList.contains('is-hidden')) {
+        pane.style.backgroundImage = 'none';
+        return;
+    }
+    const bgW = img.naturalWidth * MAGNIFIER_ZOOM;
+    const bgH = img.naturalHeight * MAGNIFIER_ZOOM;
+    const bgX = -(rx * bgW - MAG_HALF / 2);
+    const bgY = -(ry * bgH - MAG_H / 2);
+    pane.style.backgroundImage = `url("${img.src}")`;
+    pane.style.backgroundSize = `${bgW}px ${bgH}px`;
+    pane.style.backgroundPosition = `${bgX}px ${bgY}px`;
 }
 
-initMagnifier(beforeImg);
-initMagnifier(afterImg);
+function onMagMove(e: MouseEvent) {
+    const img = e.currentTarget as HTMLImageElement;
+    const rect = img.getBoundingClientRect();
+    const rx = (e.clientX - rect.left) / rect.width;
+    const ry = (e.clientY - rect.top) / rect.height;
+
+    setMagPane(magOriginal, beforeImg, rx, ry);
+    setMagPane(magUpscaled, afterImg, rx, ry);
+
+    let left = e.clientX + 20;
+    let top = e.clientY - MAG_H / 2;
+    if (left + MAG_W > window.innerWidth) {
+        left = e.clientX - MAG_W - 20;
+    }
+    top = Math.max(4, Math.min(top, window.innerHeight - MAG_H - 4));
+
+    magnifier.style.left = `${left}px`;
+    magnifier.style.top = `${top}px`;
+    magnifier.classList.remove('is-hidden');
+}
+
+function onMagLeave() {
+    magnifier.classList.add('is-hidden');
+}
+
+beforeImg.addEventListener('mousemove', onMagMove);
+beforeImg.addEventListener('mouseleave', onMagLeave);
+afterImg.addEventListener('mousemove', onMagMove);
+afterImg.addEventListener('mouseleave', onMagLeave);
 
 boot();
