@@ -6,58 +6,31 @@
     <meta http-equiv="Content-Security-Policy"
           content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' blob: data:; connect-src 'self'; font-src 'self';">
     <title>waifu2x - Client-Side Image Upscaler</title>
-    <link rel="stylesheet" href="css/style.css?v=5">
+    <link rel="stylesheet" href="css/style.css?v=6">
 </head>
 <body>
     <canvas id="gl-canvas" width="1" height="1" hidden></canvas>
 
-    <header>
+    <nav id="toolbar">
         <h1>waifu2x</h1>
-        <p class="subtitle">Client-side 2x / 4x image upscaling powered by WebGL2</p>
-    </header>
+        <label>
+            Noise reduction
+            <select id="noise-level">
+                <option value="none">None</option>
+                <option value="1">Low</option>
+                <option value="2" selected>Medium</option>
+                <option value="3">High</option>
+            </select>
+        </label>
+        <button id="upscale-2x-btn" disabled>Upscale 2x</button>
+        <button id="upscale-4x-btn" disabled>Upscale 4x</button>
+        <span id="status-text">Loading...</span>
+        <button id="download-btn" class="is-hidden">Download PNG</button>
+    </nav>
 
-    <main>
-        <div id="init-section">
-            <div class="progress-bar-track">
-                <div class="progress-bar-fill" id="model-progress-fill"></div>
-            </div>
-        </div>
-
-        <div id="controls-section" hidden>
-            <div class="options-row">
-                <label>
-                    Noise reduction
-                    <select id="noise-level">
-                        <option value="none">None (upscale only)</option>
-                        <option value="1">Low</option>
-                        <option value="2" selected>Medium</option>
-                        <option value="3">High</option>
-                    </select>
-                </label>
-                <label>
-                    Scale
-                    <select id="scale-select">
-                        <option value="2">2x</option>
-                        <option value="4">4x</option>
-                    </select>
-                </label>
-                <span id="dim-info"></span>
-            </div>
-
-            <div class="action-row">
-                <button id="process-btn" disabled>Upscale 2x</button>
-                <button id="download-btn" hidden>Download PNG</button>
-            </div>
-
-            <div id="progress-section" hidden>
-                <div class="progress-bar-track">
-                    <div class="progress-bar-fill" id="progress-fill"></div>
-                </div>
-            </div>
-        </div>
-
-        <div id="status-text">Loading...</div>
-    </main>
+    <div id="progress-track" class="progress-bar-track is-hidden">
+        <div class="progress-bar-fill" id="progress-fill"></div>
+    </div>
 
     <div id="preview-section">
         <div class="preview-grid">
@@ -90,6 +63,6 @@
         All processing runs locally in your browser. No data leaves this page.
     </footer>
 
-    <script type="module" src="js/app.js?v=3"></script>
+    <script type="module" src="js/app.js?v=4"></script>
 </body>
 </html>

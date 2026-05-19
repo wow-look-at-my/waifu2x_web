@@ -13,19 +13,15 @@ const dropZone = $<HTMLDivElement>('drop-zone');
 const dropContent = $<HTMLDivElement>('drop-content');
 const fileInput = $<HTMLInputElement>('file-input');
 const noiseSelect = $<HTMLSelectElement>('noise-level');
-const scaleSelect = $<HTMLSelectElement>('scale-select');
-const processBtn = $<HTMLButtonElement>('process-btn');
+const upscale2xBtn = $<HTMLButtonElement>('upscale-2x-btn');
+const upscale4xBtn = $<HTMLButtonElement>('upscale-4x-btn');
 const downloadBtn = $<HTMLButtonElement>('download-btn');
+const progressTrack = $<HTMLDivElement>('progress-track');
 const progressBar = $<HTMLDivElement>('progress-fill');
-const progressSection = $<HTMLDivElement>('progress-section');
-const statusText = $<HTMLDivElement>('status-text');
+const statusText = $<HTMLSpanElement>('status-text');
 const beforeImg = $<HTMLImageElement>('before-img');
 const afterImg = $<HTMLImageElement>('after-img');
 const glCanvas = $<HTMLCanvasElement>('gl-canvas');
-const modelProgress = $<HTMLDivElement>('model-progress-fill');
-const initSection = $<HTMLDivElement>('init-section');
-const controlsSection = $<HTMLDivElement>('controls-section');
-const dimInfo = $<HTMLSpanElement>('dim-info');
 const magnifier = $<HTMLDivElement>('magnifier');
 const magOriginal = $<HTMLDivElement>('mag-original');
 const magUpscaled = $<HTMLDivElement>('mag-upscaled');
@@ -39,15 +35,11 @@ let waifu2x: Waifu2x;
 let loadedModelKey = '';
 let sourceImage: HTMLImageElement | null = null;
 let resultBlobUrl = '';
+let lastScale = 2;
 
-function getScale(): number {
-    return parseInt(scaleSelect.value, 10);
-}
-
-function updateDimInfo() {
-    if (!sourceImage) return;
-    const s = getScale();
-    dimInfo.textContent = `${sourceImage.width} x ${sourceImage.height} -> ${sourceImage.width * s} x ${sourceImage.height * s}`;
+function setButtons(enabled: boolean) {
+    upscale2xBtn.disabled = !enabled;
+    upscale4xBtn.disabled = !enabled;
 }
 
 async function boot() {
@@ -60,10 +52,9 @@ async function boot() {
         return;
     }
 
+    progressTrack.classList.remove('is-hidden');
     await loadModelIfNeeded();
-
-    initSection.hidden = true;
-    controlsSection.hidden = false;
+    progressTrack.classList.add('is-hidden');
     statusText.textContent = 'Ready. Drop or select an image.';
 }
 
@@ -73,14 +64,14 @@ async function loadModelIfNeeded(): Promise<boolean> {
 
     const url = MODELS[key];
     statusText.textContent = 'Loading model...';
-    initSection.hidden = false;
-    modelProgress.style.width = '0%';
+    progressTrack.classList.remove('is-hidden');
+    progressBar.style.width = '0%';
 
     try {
         await waifu2x.loadModel(url, ratio => {
-            modelProgress.style.width = `${(ratio * 100).toFixed(0)}%`;
+            progressBar.style.width = `${(ratio * 100).toFixed(0)}%`;
         });
-        modelProgress.style.width = '100%';
+        progressBar.style.width = '100%';
         loadedModelKey = key;
         statusText.textContent = 'Model loaded.';
         return true;
@@ -101,10 +92,9 @@ function handleFile(file: File) {
         beforeImg.classList.remove('is-hidden');
         dropContent.classList.add('is-hidden');
         afterImg.classList.add('is-hidden');
-        updateDimInfo();
-        processBtn.disabled = false;
-        downloadBtn.hidden = true;
-        statusText.textContent = `Loaded ${file.name}. Ready to upscale.`;
+        setButtons(true);
+        downloadBtn.classList.add('is-hidden');
+        statusText.textContent = `Loaded ${file.name}.`;
     };
     img.src = url;
 }
@@ -125,34 +115,25 @@ dropZone.addEventListener('drop', e => {
 });
 
 noiseSelect.addEventListener('change', async () => {
-    initSection.hidden = false;
     await loadModelIfNeeded();
-    initSection.hidden = true;
+    progressTrack.classList.add('is-hidden');
 });
 
-scaleSelect.addEventListener('change', () => {
-    processBtn.textContent = `Upscale ${getScale()}x`;
-    updateDimInfo();
-});
-
-processBtn.addEventListener('click', async () => {
+async function runUpscale(scale: number) {
     if (!sourceImage) return;
 
-    initSection.hidden = false;
     if (!await loadModelIfNeeded()) return;
-    initSection.hidden = true;
 
-    const scale = getScale();
+    lastScale = scale;
     const passes = Math.log2(scale);
 
-    processBtn.disabled = true;
-    progressSection.hidden = false;
-    downloadBtn.hidden = true;
+    setButtons(false);
+    progressTrack.classList.remove('is-hidden');
+    downloadBtn.classList.add('is-hidden');
     afterImg.classList.add('is-hidden');
     progressBar.style.width = '0%';
 
     const start = performance.now();
-    statusText.textContent = 'Upscaling...';
 
     try {
         let current: HTMLImageElement | HTMLCanvasElement = sourceImage;
@@ -165,7 +146,7 @@ processBtn.addEventListener('click', async () => {
             current = await waifu2x.process(current, ratio => {
                 const overall = passOffset + ratio * passScale;
                 progressBar.style.width = `${(overall * 100).toFixed(0)}%`;
-                statusText.textContent = `Upscaling${passLabel}... ${(overall * 100).toFixed(0)}%`;
+                statusText.textContent = `Upscaling ${scale}x${passLabel}... ${(overall * 100).toFixed(0)}%`;
             });
         }
 
@@ -181,21 +162,24 @@ processBtn.addEventListener('click', async () => {
             resultBlobUrl = URL.createObjectURL(blob);
             afterImg.src = resultBlobUrl;
             afterImg.classList.remove('is-hidden');
-            downloadBtn.hidden = false;
+            downloadBtn.classList.remove('is-hidden');
         }, 'image/png');
     } catch (e) {
         statusText.textContent = `Error: ${(e as Error).message}`;
     }
 
-    processBtn.disabled = false;
-    progressSection.hidden = true;
-});
+    setButtons(true);
+    progressTrack.classList.add('is-hidden');
+}
+
+upscale2xBtn.addEventListener('click', () => runUpscale(2));
+upscale4xBtn.addEventListener('click', () => runUpscale(4));
 
 downloadBtn.addEventListener('click', () => {
     if (!resultBlobUrl) return;
     const a = document.createElement('a');
     a.href = resultBlobUrl;
-    a.download = `waifu2x_${getScale()}x.png`;
+    a.download = `waifu2x_${lastScale}x.png`;
     a.click();
 });
 
