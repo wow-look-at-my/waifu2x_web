@@ -21,33 +21,35 @@ body {
     font-family: system-ui, -apple-system, sans-serif;
     background: var(--bg);
     color: var(--text);
-    min-height: 100vh;
+    height: 100vh;
     display: flex;
     flex-direction: column;
     align-items: center;
+    overflow: hidden;
 }
 
 header {
     text-align: center;
-    padding: 2rem 1rem 1rem;
+    padding: 1rem 1rem 0.5rem;
 }
 
 header h1 {
-    font-size: 2rem;
+    font-size: 1.75rem;
     font-weight: 700;
     letter-spacing: -0.03em;
 }
 
 .subtitle {
     color: var(--muted);
-    font-size: 0.9rem;
-    margin-top: 0.25rem;
+    font-size: 0.85rem;
+    margin-top: 0.15rem;
 }
 
 main {
     width: 100%;
     max-width: 800px;
-    padding: 0 1rem 1rem;
+    padding: 0 1rem 0.5rem;
+    flex-shrink: 0;
 }
 
 #init-section {
@@ -88,7 +90,7 @@ main {
 .action-row {
     display: flex;
     gap: 0.75rem;
-    margin-top: 0.75rem;
+    margin-top: 0.5rem;
 }
 
 button {
@@ -96,7 +98,7 @@ button {
     color: #fff;
     border: none;
     border-radius: 8px;
-    padding: 0.6rem 1.5rem;
+    padding: 0.5rem 1.25rem;
     font-size: 0.95rem;
     font-weight: 600;
     cursor: pointer;
@@ -122,7 +124,7 @@ button:disabled {
 }
 
 #status-text {
-    margin-top: 0.75rem;
+    margin-top: 0.5rem;
     font-size: 0.85rem;
     color: var(--muted);
 }
@@ -150,41 +152,53 @@ button:disabled {
 
 #preview-section {
     width: 100%;
-    padding: 0 1rem 2rem;
+    flex: 1;
+    min-height: 0;
+    padding: 0.5rem 1rem;
+    display: flex;
+    flex-direction: column;
 }
 
 .preview-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 1rem;
+    flex: 1;
+    min-height: 0;
 }
 
 .preview-col {
     display: flex;
     flex-direction: column;
     min-width: 0;
+    min-height: 0;
 }
 
 .preview-label {
     font-size: 0.85rem;
     color: var(--muted);
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.25rem;
     text-align: center;
+    flex-shrink: 0;
 }
 
 .preview-img-wrap {
     flex: 1;
+    min-height: 0;
     border-radius: 8px;
     overflow: hidden;
     border: 1px solid var(--border);
     background: repeating-conic-gradient(#1a1a22 0% 25%, #22222c 0% 50%) 0 0 / 16px 16px;
-    min-height: 200px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .preview-img-wrap img {
     display: block;
-    width: 100%;
-    height: auto;
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
     cursor: crosshair;
 }
 
@@ -208,9 +222,9 @@ button:disabled {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    min-height: 200px;
+    width: 100%;
     height: 100%;
-    padding: 2.5rem 1rem;
+    padding: 2rem 1rem;
     color: var(--muted);
     border: 2px dashed var(--border);
     border-radius: 8px;
@@ -248,8 +262,8 @@ button:disabled {
 
 footer {
     text-align: center;
-    padding: 1rem;
-    font-size: 0.8rem;
+    padding: 0.25rem 1rem;
+    font-size: 0.75rem;
     color: var(--muted);
-    margin-top: auto;
+    flex-shrink: 0;
 }
