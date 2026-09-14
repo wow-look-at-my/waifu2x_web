@@ -5,7 +5,7 @@ Client-side waifu2x 2x image upscaler running entirely in the browser using WebG
 ## Architecture
 
 - **Model**: waifu2x upconv_7 architecture (6 conv layers + 1 transposed conv for 2x upscale)
-- **Inference**: Custom WebGL2 shaders for convolution and transposed convolution
+- **Inference**: Custom WebGL2 shaders for convolution and transposed convolution, running in a Web Worker via OffscreenCanvas
 - **Tiling**: Large images are processed in 128x128 tiles with 7px overlap for seamless output
 - **Models**: Binary `.bin` files in `models/` (converted from nagadomi/waifu2x JSON weights)
 
@@ -13,8 +13,9 @@ Client-side waifu2x 2x image upscaler running entirely in the browser using WebG
 
 ```
 src/           TypeScript source
-  app.ts       UI, file handling, progress
-  waifu2x.ts   WebGL2 engine, model loading, inference
+  app.ts       UI, file handling, worker communication
+  worker.ts    Web Worker entry point (owns WebGL2 context)
+  waifu2x.ts   WebGL2 engine, model loading, inference (runs in worker)
 shaders/       GLSL ES 3.00 shaders (WebGL2)
   fullscreen.vert.glsl   Fullscreen quad vertex shader
   conv.frag.glsl         3x3 valid convolution (layers 0-5)
@@ -34,7 +35,8 @@ npm run dev      # dev build with sourcemaps
 
 ## Key details
 
-- TypeScript compiled and bundled with esbuild
+- TypeScript compiled and bundled with esbuild (two entry points: app.js + worker.js)
+- All WebGL2 processing runs off the main thread in a Web Worker with OffscreenCanvas
 - CSP meta tag restricts all network to same-origin (GitHub Pages)
 - Feature maps packed in channel-group grids (4 channels per RGBA texel)
 - Weights stored as RGBA32F textures for GPU-side lookup
