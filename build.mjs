@@ -6,15 +6,18 @@ const isDev = process.argv.includes('--dev');
 rmSync('build', { recursive: true, force: true });
 mkdirSync('build', { recursive: true });
 
-await esbuild.build({
-    entryPoints: ['src/app.ts'],
+const shared = {
     bundle: true,
-    outfile: 'build/js/app.js',
     format: 'esm',
     target: 'es2020',
     minify: !isDev,
     sourcemap: isDev,
-});
+};
+
+await Promise.all([
+    esbuild.build({ ...shared, entryPoints: ['src/app.ts'], outfile: 'build/js/app.js' }),
+    esbuild.build({ ...shared, entryPoints: ['src/worker.ts'], outfile: 'build/js/worker.js' }),
+]);
 
 cpSync('index.html', 'build/index.html');
 cpSync('css', 'build/css', { recursive: true });
