@@ -10,13 +10,31 @@ interface LayerMeta {
     biasTex: WebGLTexture | null;
 }
 
+export interface TimingData {
+    totalMs: number;
+    mirrorPadMs: number;
+    tileCount: number;
+    tileExtractMs: number;
+    uploadMs: number;
+    convLayerMs: number[];
+    deconvMs: number;
+    readbackMs: number;
+    stitchMs: number;
+}
+
+export interface ProcessResult {
+    canvas: OffscreenCanvas;
+    timing: TimingData;
+}
+
 export class Waifu2x {
     private gl: WebGL2RenderingContext;
     private programs: { conv?: WebGLProgram; deconv?: WebGLProgram } = {};
     private model: LayerMeta[] | null = null;
     private quadVAO: WebGLVertexArrayObject | null = null;
 
-    constructor(canvas: HTMLCanvasElement) {
+    constructor() {
+        const canvas = new OffscreenCanvas(1, 1);
         const gl = canvas.getContext('webgl2', {
             antialias: false,
             premultipliedAlpha: false,
@@ -31,11 +49,12 @@ export class Waifu2x {
         this.gl = gl;
     }
 
-    async init(): Promise<void> {
+    async init(baseUrl: string): Promise<void> {
+        const resolve = (path: string) => new URL(path, baseUrl).href;
         const [vertSrc, convSrc, deconvSrc] = await Promise.all([
-            fetch('shaders/fullscreen.vert.glsl').then(r => r.text()),
-            fetch('shaders/conv.frag.glsl').then(r => r.text()),
-            fetch('shaders/deconv.frag.glsl').then(r => r.text()),
+            fetch(resolve('shaders/fullscreen.vert.glsl')).then(r => r.text()),
+            fetch(resolve('shaders/conv.frag.glsl')).then(r => r.text()),
+            fetch(resolve('shaders/deconv.frag.glsl')).then(r => r.text()),
         ]);
 
         this.programs.conv = this.createProgram(vertSrc, convSrc);
@@ -69,10 +88,11 @@ export class Waifu2x {
         this.buildWeightTextures();
     }
 
-    async process(
-        inputImage: HTMLImageElement | HTMLCanvasElement,
+    process(
+        inputImage: ImageBitmap,
         onProgress?: (ratio: number) => void,
-    ): Promise<HTMLCanvasElement> {
+    ): ProcessResult {
+        const totalStart = performance.now();
         const model = this.model!;
         const srcW = inputImage.width;
         const srcH = inputImage.height;
@@ -89,11 +109,12 @@ export class Waifu2x {
 
         const padW = tilesX * STRIDE + 2 * BORDER;
         const padH = tilesY * STRIDE + 2 * BORDER;
-        const paddedCanvas = this.createPadded(inputImage, padW, padH, BORDER);
 
-        const outputCanvas = document.createElement('canvas');
-        outputCanvas.width = outW;
-        outputCanvas.height = outH;
+        const padStart = performance.now();
+        const paddedCanvas = this.createPadded(inputImage, padW, padH, BORDER);
+        const mirrorPadMs = performance.now() - padStart;
+
+        const outputCanvas = new OffscreenCanvas(outW, outH);
         const octx = outputCanvas.getContext('2d')!;
 
         const convLayers = model.length - 1;
@@ -104,56 +125,81 @@ export class Waifu2x {
         const cropEdge = (deconvOutputSize - STRIDE * 2) >> 1;
 
         let processed = 0;
+        let sumExtract = 0;
+        let sumUpload = 0;
+        const sumConv: number[] = new Array(convLayers).fill(0);
+        let sumDeconv = 0;
+        let sumReadback = 0;
+        let sumStitch = 0;
 
         for (let ty = 0; ty < tilesY; ty++) {
             for (let tx = 0; tx < tilesX; tx++) {
                 const sx = tx * STRIDE;
                 const sy = ty * STRIDE;
 
-                const tileCanvas = document.createElement('canvas');
-                tileCanvas.width = TILE;
-                tileCanvas.height = TILE;
+                let t0 = performance.now();
+                const tileCanvas = new OffscreenCanvas(TILE, TILE);
                 const tctx = tileCanvas.getContext('2d')!;
                 tctx.drawImage(paddedCanvas, sx, sy, TILE, TILE, 0, 0, TILE, TILE);
+                sumExtract += performance.now() - t0;
 
-                const result = this.processTile(tileCanvas);
+                const tile = this.processTileTimed(tileCanvas);
 
+                sumUpload += tile.uploadMs;
+                for (let i = 0; i < tile.convLayerMs.length; i++) {
+                    sumConv[i] += tile.convLayerMs[i];
+                }
+                sumDeconv += tile.deconvMs;
+                sumReadback += tile.readbackMs;
+
+                t0 = performance.now();
                 const outX = tx * STRIDE * 2;
                 const outY = ty * STRIDE * 2;
                 const drawW = Math.min(STRIDE * 2, outW - outX);
                 const drawH = Math.min(STRIDE * 2, outH - outY);
 
                 if (drawW > 0 && drawH > 0) {
-                    octx.drawImage(result, cropEdge, cropEdge, drawW, drawH,
+                    octx.drawImage(tile.canvas, cropEdge, cropEdge, drawW, drawH,
                         outX, outY, drawW, drawH);
                 }
+                sumStitch += performance.now() - t0;
 
                 processed++;
                 if (onProgress) onProgress(processed / totalTiles);
-                await new Promise(r => setTimeout(r, 0));
             }
         }
 
-        return outputCanvas;
+        const totalMs = performance.now() - totalStart;
+
+        return {
+            canvas: outputCanvas,
+            timing: {
+                totalMs,
+                mirrorPadMs,
+                tileCount: totalTiles,
+                tileExtractMs: sumExtract,
+                uploadMs: sumUpload,
+                convLayerMs: sumConv.slice(),
+                deconvMs: sumDeconv,
+                readbackMs: sumReadback,
+                stitchMs: sumStitch,
+            },
+        };
     }
 
     private createPadded(
-        img: HTMLImageElement | HTMLCanvasElement,
+        img: ImageBitmap,
         padW: number, padH: number, border: number,
-    ): HTMLCanvasElement {
+    ): OffscreenCanvas {
         const w = img.width;
         const h = img.height;
 
-        const tmp = document.createElement('canvas');
-        tmp.width = w;
-        tmp.height = h;
+        const tmp = new OffscreenCanvas(w, h);
         const tctx = tmp.getContext('2d')!;
         tctx.drawImage(img, 0, 0);
         const src = tctx.getImageData(0, 0, w, h);
 
-        const pad = document.createElement('canvas');
-        pad.width = padW;
-        pad.height = padH;
+        const pad = new OffscreenCanvas(padW, padH);
         const pctx = pad.getContext('2d')!;
         const dst = pctx.createImageData(padW, padH);
 
@@ -174,7 +220,13 @@ export class Waifu2x {
         return pad;
     }
 
-    private processTile(tileCanvas: HTMLCanvasElement): HTMLCanvasElement {
+    private processTileTimed(tileCanvas: OffscreenCanvas): {
+        canvas: OffscreenCanvas;
+        uploadMs: number;
+        convLayerMs: number[];
+        deconvMs: number;
+        readbackMs: number;
+    } {
         const gl = this.gl;
         const model = this.model!;
         const tileW = tileCanvas.width;
@@ -183,11 +235,20 @@ export class Waifu2x {
         gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, 0);
         gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, 0);
 
+        gl.finish();
+        const uploadStart = performance.now();
         let inputTex = this.texFromCanvas(tileCanvas);
+        gl.finish();
+        const uploadMs = performance.now() - uploadStart;
+
         let cellW = tileW;
         let cellH = tileH;
         let gridCols = 1;
         let numGroups = 1;
+
+        const convLayerMs: number[] = [];
+        let deconvMs = 0;
+        let readbackMs = 0;
 
         for (let li = 0; li < model.length; li++) {
             const layer = model[li];
@@ -195,14 +256,24 @@ export class Waifu2x {
             if (layer.isDeconv) {
                 const outW = (cellW - 1) * 2 + layer.kW;
                 const outH = (cellH - 1) * 2 + layer.kH;
+
+                gl.finish();
+                let t0 = performance.now();
                 const { tex, fbo } = this.runDeconv(
                     inputTex, layer, cellW, cellH, gridCols, numGroups, outW, outH,
                 );
+                gl.finish();
+                deconvMs = performance.now() - t0;
+
                 gl.deleteTexture(inputTex);
+
+                t0 = performance.now();
                 const resultCanvas = this.readToCanvas(fbo, outW, outH);
+                readbackMs = performance.now() - t0;
+
                 gl.deleteTexture(tex);
                 gl.deleteFramebuffer(fbo);
-                return resultCanvas;
+                return { canvas: resultCanvas, uploadMs, convLayerMs, deconvMs, readbackMs };
             }
 
             const outCellW = cellW - 2;
@@ -213,11 +284,15 @@ export class Waifu2x {
             const outTexW = outGridCols * outCellW;
             const outTexH = outGridRows * outCellH;
 
+            gl.finish();
+            const t0 = performance.now();
             const outTex = this.runConv(
                 inputTex, layer,
                 cellW, cellH, gridCols, numGroups,
                 outCellW, outCellH, outGridCols, outNumGroups, outTexW, outTexH,
             );
+            gl.finish();
+            convLayerMs.push(performance.now() - t0);
 
             gl.deleteTexture(inputTex);
             inputTex = outTex;
@@ -227,7 +302,7 @@ export class Waifu2x {
             numGroups = outNumGroups;
         }
 
-        return document.createElement('canvas');
+        return { canvas: new OffscreenCanvas(0, 0), uploadMs, convLayerMs, deconvMs, readbackMs };
     }
 
     private runConv(
@@ -319,16 +394,14 @@ export class Waifu2x {
         return { tex: outTex, fbo };
     }
 
-    private readToCanvas(fbo: WebGLFramebuffer, w: number, h: number): HTMLCanvasElement {
+    private readToCanvas(fbo: WebGLFramebuffer, w: number, h: number): OffscreenCanvas {
         const gl = this.gl;
         gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
         const pixels = new Uint8Array(w * h * 4);
         gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
         gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 
-        const canvas = document.createElement('canvas');
-        canvas.width = w;
-        canvas.height = h;
+        const canvas = new OffscreenCanvas(w, h);
         const ctx = canvas.getContext('2d')!;
         const imgData = ctx.createImageData(w, h);
         imgData.data.set(pixels);
@@ -336,7 +409,7 @@ export class Waifu2x {
         return canvas;
     }
 
-    private texFromCanvas(canvas: HTMLCanvasElement): WebGLTexture {
+    private texFromCanvas(canvas: OffscreenCanvas): WebGLTexture {
         const gl = this.gl;
         const ctx = canvas.getContext('2d')!;
         const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
