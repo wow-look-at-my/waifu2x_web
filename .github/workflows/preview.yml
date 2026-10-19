@@ -10,13 +10,12 @@ concurrency:
   group: gha_${{ github.repository }}_${{ github.workflow }}_${{ github.ref != 'refs/heads/master' && github.ref || github.run_id }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
 
+# id-token lets buildhost-publish-site authenticate to buildhost via OIDC (no static secret); deployments and artifact-metadata let it record the release.
 permissions:
-  contents: write
-  pages: write
-  pull-requests: write
-  statuses: write
+  contents: read
   id-token: write
-  actions: read
+  deployments: write
+  artifact-metadata: write
 
 jobs:
   build:
@@ -29,16 +28,26 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: node build.mjs
-      - uses: actions/upload-artifact@v4
-        with:
-          name: build
-          path: ./build/
+      - run: just build
 
+  # The deploy job builds its own copy of the site. The artifact-storage route the preview used to take is gone, so the job that publishes cannot wait on another job's workspace. Each PR writes to its own buildhost branch, so a newer push replaces the previous preview atomically.
   deploy-preview:
     needs: build
-    if: always()
-    uses: PazerOP/pr-preview-action/.github/workflows/preview.yml@master
-    with:
-      artifact-name: build
-    secrets: inherit
+    if: always() && github.event.action != 'closed'
+    runs-on: ${{ github.event.repository.visibility == 'public' && 'ubuntu-latest' || vars.CI_RUNNER || 'ubuntu-latest' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: just build
+      - name: Publish preview to buildhost
+        uses: wow-look-at-my/buildhost/.github/actions/buildhost-publish-site@lkgb
+        with:
+          server: https://pazer.build
+          project: waifu2x_web
+          branch: ${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.number) || github.ref_name }}
+          source_dir: build
+          public: true
