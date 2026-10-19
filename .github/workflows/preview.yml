@@ -28,7 +28,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: just build
+      - run: node build.mjs
 
   # The deploy job builds its own copy of the site. The artifact-storage route the preview used to take is gone, so the job that publishes cannot wait on another job's workspace. Each PR writes to its own buildhost branch, so a newer push replaces the previous preview atomically.
   deploy-preview:
@@ -42,7 +42,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: just build
+      - run: node build.mjs
       - name: Publish preview to buildhost
         uses: wow-look-at-my/buildhost/.github/actions/buildhost-publish-site@lkgb
         with:
