@@ -10,12 +10,13 @@ concurrency:
   group: gha_${{ github.repository }}_${{ github.workflow }}_${{ github.ref != 'refs/heads/master' && github.ref || github.run_id }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
 
-# id-token lets buildhost-publish-site authenticate to buildhost via OIDC (no static secret); deployments and artifact-metadata let it record the release.
+# id-token lets buildhost-publish-site authenticate to buildhost via OIDC (no static secret); deployments and artifact-metadata let it record the release. pull-requests is for the preview URL comment it leaves on the PR.
 permissions:
   contents: read
   id-token: write
   deployments: write
   artifact-metadata: write
+  pull-requests: write
 
 jobs:
   build:
