@@ -459,7 +459,7 @@ export class Waifu2x {
         let offset = 0;
 
         const numLayers = view.getUint16(offset, true);
-        offset += 4; // u16 num_layers + u16 padding for 4-byte alignment
+        offset += 4;
         const layers: LayerMeta[] = [];
 
         for (let i = 0; i < numLayers; i++) {
@@ -478,7 +478,6 @@ export class Waifu2x {
             });
         }
 
-        // offset is now 4 + numLayers*8 = always 4-byte aligned
         for (const layer of layers) {
             const dim0 = layer.isDeconv ? layer.nI : layer.nO;
             const dim1 = layer.isDeconv ? layer.nO : layer.nI;
