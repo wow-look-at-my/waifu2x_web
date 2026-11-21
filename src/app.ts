@@ -1,4 +1,7 @@
-import type { TimingData } from './waifu2x';
+// app.ts holds offer.
+
+import { CancelledError, EngineClient } from './client';
+import type { ProcessResult, ProgressStage, TimingData } from './protocol';
 
 const MODELS: Record<string, string> = {
     'none': 'models/scale2x.bin',
@@ -13,7 +16,9 @@ const dropZone = $<HTMLDivElement>('drop-zone');
 const fileInput = $<HTMLInputElement>('file-input');
 const noiseSelect = $<HTMLSelectElement>('noise-level');
 const processBtn = $<HTMLButtonElement>('process-btn');
+const cancelBtn = $<HTMLButtonElement>('cancel-btn');
 const downloadBtn = $<HTMLButtonElement>('download-btn');
+const copyBtn = $<HTMLButtonElement>('copy-btn');
 const progressBar = $<HTMLDivElement>('progress-fill');
 const progressSection = $<HTMLDivElement>('progress-section');
 const statusText = $<HTMLDivElement>('status-text');
@@ -29,172 +34,218 @@ const dimInfo = $<HTMLSpanElement>('dim-info');
 const timingSection = $<HTMLDivElement>('timing-section');
 
 const baseUrl = new URL('.', location.href).href;
-const worker = new Worker('js/worker.js', { type: 'module' });
+const engine = new EngineClient('js/worker.js');
+const canCopy = typeof ClipboardItem !== 'undefined' && !!navigator.clipboard?.write;
 
-let loadedModelKey = '';
-let sourceImage: HTMLImageElement | null = null;
-let resultBlobUrl = '';
+interface Source {
+    img: HTMLImageElement;
+    url: string;
+    name: string;
+}
 
-function rpc(msgType: string): Promise<void>;
-function rpc(msgType: string, extra: Record<string, unknown>, transfer?: Transferable[]): Promise<any>;
-function rpc(msgType: string, extra?: Record<string, unknown>, transfer?: Transferable[]): Promise<any> {
-    return new Promise((resolve, reject) => {
-        const prev = worker.onmessage;
-        worker.onmessage = (e: MessageEvent) => {
-            const msg = e.data;
-            if (msg.type === 'error') {
-                worker.onmessage = prev;
-                reject(new Error(msg.message));
-            } else if (msg.type === 'modelProgress') {
-                modelProgress.style.width = `${(msg.ratio * 100).toFixed(0)}%`;
-            } else if (msg.type === 'progress') {
-                progressBar.style.width = `${(msg.ratio * 100).toFixed(0)}%`;
-                const pct = (msg.ratio * 100).toFixed(0);
-                statusText.textContent = `Upscaling... ${pct}%`;
-            } else {
-                worker.onmessage = prev;
-                resolve(msg);
-            }
-        };
-        worker.postMessage({ type: msgType, ...extra }, transfer ?? []);
-    });
+let source: Source | null = null;
+let result: { blob: Blob; url: string; name: string } | null = null;
+let ready = false;
+let busy = false;
+let jobSeq = 0;
+let decodeSeq = 0;
+
+const modelUrl = () => new URL(MODELS[noiseSelect.value], baseUrl).href;
+
+function refresh() {
+    processBtn.disabled = !source || !ready || busy;
+    cancelBtn.hidden = !busy;
+    noiseSelect.disabled = busy;
+    progressSection.hidden = !busy;
+}
+
+function onProgress(stage: ProgressStage, ratio: number) {
+    const pct = `${Math.round(ratio * 100)}%`;
+    if (stage === 'model') {
+        modelProgress.style.width = pct;
+    } else {
+        progressBar.style.width = pct;
+        statusText.textContent = `Upscaling... ${pct}`;
+    }
+}
+
+async function loadModel(): Promise<boolean> {
+    initSection.hidden = false;
+    modelProgress.style.width = '0%';
+    statusText.textContent = 'Loading model...';
+    try {
+        await engine.loadModel(modelUrl(), onProgress);
+        return true;
+    } catch (e) {
+        if (!(e instanceof CancelledError)) statusText.textContent = `Error: ${(e as Error).message}`;
+        return false;
+    } finally {
+        initSection.hidden = true;
+    }
 }
 
 async function boot() {
-    statusText.textContent = 'Initializing WebGL2...';
-    try {
-        await rpc('init', { baseUrl });
-    } catch (e) {
-        statusText.textContent = `Error: ${(e as Error).message}`;
-        return;
-    }
-
-    await loadModelIfNeeded();
-
-    initSection.hidden = true;
+    ready = await loadModel();
+    if (!ready) return;
     controlsSection.hidden = false;
-    statusText.textContent = 'Ready. Drop or select an image.';
+    statusText.textContent = source
+        ? `Loaded ${source.name}. Ready to upscale.`
+        : 'Ready. Drop, paste or select an image.';
+    refresh();
 }
 
-async function loadModelIfNeeded(): Promise<boolean> {
-    const key = noiseSelect.value;
-    if (key === loadedModelKey) return true;
-
-    const url = new URL(MODELS[key], baseUrl).href;
-    statusText.textContent = 'Loading model...';
-    initSection.hidden = false;
-    modelProgress.style.width = '0%';
-
-    try {
-        await rpc('loadModel', { url });
-        modelProgress.style.width = '100%';
-        loadedModelKey = key;
-        statusText.textContent = 'Model loaded.';
-        return true;
-    } catch (e) {
-        statusText.textContent = `Model load failed: ${(e as Error).message}`;
-        return false;
-    }
+function clearResult() {
+    if (result) URL.revokeObjectURL(result.url);
+    result = null;
+    previewSection.hidden = true;
+    downloadBtn.hidden = true;
+    copyBtn.hidden = true;
+    timingSection.hidden = true;
 }
 
-function handleFile(file: File) {
-    if (!file.type.startsWith('image/')) return;
+function showResult(res: ProcessResult, sourceName: string) {
+    result = {
+        blob: res.blob,
+        url: URL.createObjectURL(res.blob),
+        name: `${sourceName.replace(/\.[^.]+$/, '')}_waifu2x.png`,
+    };
+    afterImg.src = result.url;
+    compSlider.value = '100';
+    afterWrap.style.clipPath = '';
+    previewSection.hidden = false;
+    downloadBtn.hidden = false;
+    copyBtn.hidden = !canCopy;
+    timingSection.textContent = formatTiming(res.timing);
+    timingSection.hidden = false;
+    statusText.textContent = `Done in ${(res.timing.totalMs / 1000).toFixed(1)}s.`;
+}
 
+function cancel() {
+    if (!busy) return;
+    jobSeq++;
+    engine.restart();
+}
+
+function setSource(file: File, verb: string) {
+    const seq = ++decodeSeq;
     const url = URL.createObjectURL(file);
+    const name = file.name || 'image.png';
     const img = new Image();
     img.onload = () => {
-        sourceImage = img;
+        if (seq !== decodeSeq) {
+            URL.revokeObjectURL(url);
+            return;
+        }
+        cancel();
+        if (source) URL.revokeObjectURL(source.url);
+        source = { img, url, name };
+        clearResult();
         beforeImg.src = url;
-        dimInfo.textContent = `${img.width} x ${img.height} -> ${img.width * 2} x ${img.height * 2}`;
-        processBtn.disabled = false;
-        previewSection.hidden = true;
-        downloadBtn.hidden = true;
-        statusText.textContent = `Loaded ${file.name}. Ready to upscale.`;
+        const w = img.naturalWidth;
+        const h = img.naturalHeight;
+        dimInfo.textContent = `${w} x ${h} -> ${w * 2} x ${h * 2}`;
+        statusText.textContent = ready ? `${verb} ${name}. Ready to upscale.` : `${verb} ${name}.`;
+        refresh();
+    };
+    img.onerror = () => {
+        URL.revokeObjectURL(url);
+        if (seq === decodeSeq) statusText.textContent = `Could not read ${name} as an image.`;
     };
     img.src = url;
 }
 
-dropZone.addEventListener('click', () => fileInput.click());
-fileInput.addEventListener('change', () => {
-    if (fileInput.files?.[0]) handleFile(fileInput.files[0]);
+// Takes the first image of a paste or a drop. Reports why when there is none.
+function offer(transfer: DataTransfer | null, verb: string, emptyMessage: string): boolean {
+    const files = [...(transfer?.files ?? [])];
+    const file = files.find(f => f.type.startsWith('image/'));
+    if (!file) {
+        statusText.textContent = files.length ? `${files[0].name} is not an image.` : emptyMessage;
+        return false;
+    }
+    setSource(file, verb);
+    return true;
+}
+
+async function upscale() {
+    if (!source || !ready || busy) return;
+    const current = source;
+    const job = ++jobSeq;
+
+    busy = true;
+    clearResult();
+    progressBar.style.width = '0%';
+    statusText.textContent = 'Upscaling...';
+    refresh();
+
+    try {
+        const bitmap = await createImageBitmap(current.img);
+        if (job !== jobSeq) {
+            bitmap.close();
+            throw new CancelledError();
+        }
+        showResult(await engine.process(bitmap, modelUrl(), onProgress), current.name);
+    } catch (e) {
+        statusText.textContent = e instanceof CancelledError
+            ? 'Cancelled.'
+            : `Error: ${(e as Error).message}`;
+    }
+
+    busy = false;
+    refresh();
+}
+
+document.addEventListener('paste', e => {
+    if (offer(e.clipboardData, 'Pasted', 'The clipboard holds no image.')) e.preventDefault();
 });
-dropZone.addEventListener('dragover', e => {
+
+dropZone.addEventListener('click', () => fileInput.click());
+dropZone.addEventListener('keydown', e => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    e.preventDefault();
+    fileInput.click();
+});
+fileInput.addEventListener('change', () => {
+    const file = fileInput.files?.[0];
+    // An empty value lets the same file be selected again.
+    fileInput.value = '';
+    if (file) setSource(file, 'Loaded');
+});
+
+window.addEventListener('dragover', e => {
     e.preventDefault();
     dropZone.classList.add('dragover');
 });
-dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
-dropZone.addEventListener('drop', e => {
+window.addEventListener('dragleave', e => {
+    if (!e.relatedTarget) dropZone.classList.remove('dragover');
+});
+window.addEventListener('drop', e => {
     e.preventDefault();
     dropZone.classList.remove('dragover');
-    if (e.dataTransfer?.files[0]) handleFile(e.dataTransfer.files[0]);
+    offer(e.dataTransfer, 'Loaded', 'Drop an image file.');
 });
 
 noiseSelect.addEventListener('change', async () => {
-    initSection.hidden = false;
-    await loadModelIfNeeded();
-    initSection.hidden = true;
+    if (await loadModel()) statusText.textContent = 'Model loaded.';
 });
-
-processBtn.addEventListener('click', async () => {
-    if (!sourceImage) return;
-
-    initSection.hidden = false;
-    if (!await loadModelIfNeeded()) return;
-    initSection.hidden = true;
-
-    processBtn.disabled = true;
-    progressSection.hidden = false;
-    downloadBtn.hidden = true;
-    previewSection.hidden = true;
-    timingSection.hidden = true;
-    progressBar.style.width = '0%';
-    statusText.textContent = 'Upscaling...';
-
-    try {
-        const bitmap = await createImageBitmap(sourceImage);
-        const result = await rpc('process', { bitmap }, [bitmap]);
-        const timing: TimingData = result.timing;
-        const resultBitmap: ImageBitmap = result.bitmap;
-
-        const elapsed = (timing.totalMs / 1000).toFixed(1);
-        statusText.textContent = `Done in ${elapsed}s.`;
-        progressBar.style.width = '100%';
-
-        timingSection.textContent = formatTiming(timing);
-        timingSection.hidden = false;
-
-        const resultCanvas = document.createElement('canvas');
-        resultCanvas.width = resultBitmap.width;
-        resultCanvas.height = resultBitmap.height;
-        const ctx = resultCanvas.getContext('2d')!;
-        ctx.drawImage(resultBitmap, 0, 0);
-        resultBitmap.close();
-
-        if (resultBlobUrl) URL.revokeObjectURL(resultBlobUrl);
-
-        resultCanvas.toBlob(blob => {
-            if (!blob) return;
-            resultBlobUrl = URL.createObjectURL(blob);
-            afterImg.src = resultBlobUrl;
-            previewSection.hidden = false;
-            downloadBtn.hidden = false;
-            compSlider.value = '100';
-            afterWrap.style.clipPath = '';
-        }, 'image/png');
-    } catch (e) {
-        statusText.textContent = `Error: ${(e as Error).message}`;
-    }
-
-    processBtn.disabled = false;
-    progressSection.hidden = true;
-});
+processBtn.addEventListener('click', upscale);
+cancelBtn.addEventListener('click', cancel);
 
 downloadBtn.addEventListener('click', () => {
-    if (!resultBlobUrl) return;
+    if (!result) return;
     const a = document.createElement('a');
-    a.href = resultBlobUrl;
-    a.download = 'waifu2x_upscaled.png';
+    a.href = result.url;
+    a.download = result.name;
     a.click();
+});
+
+copyBtn.addEventListener('click', async () => {
+    if (!result) return;
+    try {
+        await navigator.clipboard.write([new ClipboardItem({ 'image/png': result.blob })]);
+        statusText.textContent = 'Copied the result to the clipboard.';
+    } catch (e) {
+        statusText.textContent = `Copy failed: ${(e as Error).message}`;
+    }
 });
 
 compSlider.addEventListener('input', () => {
@@ -211,7 +262,7 @@ function formatTiming(t: TimingData): string {
     };
     const lines = [
         `Timing breakdown (${t.tileCount} tile${t.tileCount !== 1 ? 's' : ''})`,
-        fmt('Mirror padding:', t.mirrorPadMs),
+        fmt('Prepare:', t.prepareMs),
         fmt('Tile extract:', t.tileExtractMs),
         fmt('Upload:', t.uploadMs),
     ];
@@ -220,7 +271,7 @@ function formatTiming(t: TimingData): string {
     }
     lines.push(fmt('Deconv:', t.deconvMs));
     lines.push(fmt('Readback:', t.readbackMs));
-    lines.push(fmt('Stitch:', t.stitchMs));
+    lines.push(fmt('Encode PNG:', t.encodeMs));
     lines.push(fmt('Total:', t.totalMs));
     return lines.join('\n');
 }
