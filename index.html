@@ -22,9 +22,9 @@
         </div>
 
         <div id="controls-section" hidden>
-            <div id="drop-zone">
+            <div id="drop-zone" role="button" tabindex="0">
                 <div class="drop-icon">&#x1F5BC;</div>
-                <div>Drop image here or click to select</div>
+                <div>Drop an image, paste one (Ctrl+V), or click to select</div>
                 <input type="file" id="file-input" accept="image/*" hidden>
             </div>
 
@@ -43,7 +43,9 @@
 
             <div class="action-row">
                 <button id="process-btn" disabled>Upscale 2x</button>
-                <button id="download-btn" hidden>Download PNG</button>
+                <button id="cancel-btn" class="secondary" hidden>Cancel</button>
+                <button id="download-btn" class="secondary" hidden>Download PNG</button>
+                <button id="copy-btn" class="secondary" hidden>Copy to clipboard</button>
             </div>
 
             <div id="progress-section" hidden>

@@ -3,7 +3,10 @@
   "version": "1.0.0",
   "private": true,
   "devDependencies": {
+    "@types/node": "^22.20.5",
     "esbuild": "^0.25.0",
+    "playwright-core": "1.63.0",
     "typescript": "^5.8.0"
-  }
+  },
+  "type": "module"
 }
