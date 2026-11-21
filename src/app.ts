@@ -123,7 +123,9 @@ function showResult(res: ProcessResult, sourceName: string) {
 function cancel() {
     if (!busy) return;
     jobSeq++;
+    busy = false;
     engine.restart();
+    refresh();
 }
 
 function setSource(file: File, verb: string) {
@@ -185,11 +187,12 @@ async function upscale() {
         }
         showResult(await engine.process(bitmap, modelUrl(), onProgress), current.name);
     } catch (e) {
-        statusText.textContent = e instanceof CancelledError
-            ? 'Cancelled.'
-            : `Error: ${(e as Error).message}`;
+        // The code that cancelled the job has already set the status.
+        if (!(e instanceof CancelledError)) statusText.textContent = `Error: ${(e as Error).message}`;
     }
 
+    // A new job can start before the rejection of a cancelled one arrives here.
+    if (job !== jobSeq) return;
     busy = false;
     refresh();
 }
@@ -228,7 +231,10 @@ noiseSelect.addEventListener('change', async () => {
     if (await loadModel()) statusText.textContent = 'Model loaded.';
 });
 processBtn.addEventListener('click', upscale);
-cancelBtn.addEventListener('click', cancel);
+cancelBtn.addEventListener('click', () => {
+    cancel();
+    statusText.textContent = 'Cancelled.';
+});
 
 downloadBtn.addEventListener('click', () => {
     if (!result) return;

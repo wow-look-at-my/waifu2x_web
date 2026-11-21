@@ -27,8 +27,22 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      - uses: wow-look-at-my/actions@cached-apt#latest
+        with:
+          packages: just
       - run: npm ci
-      - run: npm run build
+
+      # The Chromium build that playwright-core pins is cached. Its system libraries install each run.
+      - uses: wow-look-at-my/actions@cached-run#latest
+        with:
+          paths: ~/.cache/ms-playwright
+          run: |
+            # ${{ hashFiles('package-lock.json') }}
+            npx playwright-core install chromium
+      - run: npx playwright-core install-deps chromium
+
+      - run: just check
+      - run: just test
       - uses: actions/upload-artifact@v4
         with:
           name: build
