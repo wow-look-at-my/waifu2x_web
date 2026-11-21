@@ -66,7 +66,9 @@ main {
 }
 
 #drop-zone:hover,
+#drop-zone:focus-visible,
 #drop-zone.dragover {
+    outline: none;
     border-color: var(--accent);
     background: rgba(124, 92, 191, 0.06);
 }
@@ -111,6 +113,7 @@ main {
     display: flex;
     gap: 0.75rem;
     margin-top: 1rem;
+    flex-wrap: wrap;
 }
 
 button {
@@ -134,12 +137,12 @@ button:disabled {
     cursor: not-allowed;
 }
 
-#download-btn {
+button.secondary {
     background: var(--surface);
     border: 1px solid var(--border);
 }
 
-#download-btn:hover {
+button.secondary:hover:not(:disabled) {
     background: var(--border);
 }
 
