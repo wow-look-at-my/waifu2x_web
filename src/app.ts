@@ -16,6 +16,7 @@ const dropZone = $<HTMLDivElement>('drop-zone');
 const fileInput = $<HTMLInputElement>('file-input');
 const noiseSelect = $<HTMLSelectElement>('noise-level');
 const processBtn = $<HTMLButtonElement>('process-btn');
+const upscale4xBtn = $<HTMLButtonElement>('upscale-4x-btn');
 const cancelBtn = $<HTMLButtonElement>('cancel-btn');
 const downloadBtn = $<HTMLButtonElement>('download-btn');
 const copyBtn = $<HTMLButtonElement>('copy-btn');
@@ -25,8 +26,9 @@ const statusText = $<HTMLDivElement>('status-text');
 const previewSection = $<HTMLDivElement>('preview-section');
 const beforeImg = $<HTMLImageElement>('before-img');
 const afterImg = $<HTMLImageElement>('after-img');
-const compSlider = $<HTMLInputElement>('comp-slider');
-const afterWrap = $<HTMLDivElement>('after-wrap');
+const magnifier = $<HTMLDivElement>('magnifier');
+const magOriginal = $<HTMLDivElement>('mag-original');
+const magUpscaled = $<HTMLDivElement>('mag-upscaled');
 const modelProgress = $<HTMLDivElement>('model-progress-fill');
 const initSection = $<HTMLDivElement>('init-section');
 const controlsSection = $<HTMLDivElement>('controls-section');
@@ -54,6 +56,7 @@ const modelUrl = () => new URL(MODELS[noiseSelect.value], baseUrl).href;
 
 function refresh() {
     processBtn.disabled = !source || !ready || busy;
+    upscale4xBtn.disabled = !source || !ready || busy;
     cancelBtn.hidden = !busy;
     noiseSelect.disabled = busy;
     progressSection.hidden = !busy;
@@ -98,6 +101,7 @@ function clearResult() {
     if (result) URL.revokeObjectURL(result.url);
     result = null;
     previewSection.hidden = true;
+    magnifier.classList.add('is-hidden');
     downloadBtn.hidden = true;
     copyBtn.hidden = true;
     timingSection.hidden = true;
@@ -110,8 +114,6 @@ function showResult(res: ProcessResult, sourceName: string) {
         name: `${sourceName.replace(/\.[^.]+$/, '')}_waifu2x.png`,
     };
     afterImg.src = result.url;
-    compSlider.value = '100';
-    afterWrap.style.clipPath = '';
     previewSection.hidden = false;
     downloadBtn.hidden = false;
     copyBtn.hidden = !canCopy;
@@ -168,24 +170,55 @@ function offer(transfer: DataTransfer | null, verb: string, emptyMessage: string
     return true;
 }
 
-async function upscale() {
+// The model is a 2x network, so 4x runs it twice: 2x, then 2x again on the result.
+async function upscale(scale: 2 | 4) {
     if (!source || !ready || busy) return;
     const current = source;
     const job = ++jobSeq;
+    const passes = scale === 4 ? 2 : 1;
 
     busy = true;
     clearResult();
     progressBar.style.width = '0%';
-    statusText.textContent = 'Upscaling...';
+    statusText.textContent = `Upscaling ${scale}x...`;
     refresh();
 
     try {
-        const bitmap = await createImageBitmap(current.img);
+        let bitmap = await createImageBitmap(current.img);
         if (job !== jobSeq) {
             bitmap.close();
             throw new CancelledError();
         }
-        showResult(await engine.process(bitmap, modelUrl(), onProgress), current.name);
+        const total: TimingData = {
+            totalMs: 0,
+            prepareMs: 0,
+            tileCount: 0,
+            tileExtractMs: 0,
+            uploadMs: 0,
+            convLayerMs: [],
+            deconvMs: 0,
+            readbackMs: 0,
+            encodeMs: 0,
+        };
+        let done: ProcessResult | undefined;
+        for (let pass = 0; pass < passes; pass++) {
+            const from = pass / passes;
+            const share = 1 / passes;
+            done = await engine.process(bitmap, modelUrl(), (stage, ratio) =>
+                onProgress(stage, from + ratio * share));
+            accumulate(total, done.timing);
+            if (job !== jobSeq) throw new CancelledError();
+            if (pass < passes - 1) {
+                // The worker hands back a PNG, which decodes into the next pass's input.
+                bitmap = await createImageBitmap(done.blob);
+                if (job !== jobSeq) {
+                    bitmap.close();
+                    throw new CancelledError();
+                }
+            }
+        }
+        if (!done) throw new Error('The worker returned no result');
+        showResult({ ...done, timing: total }, current.name);
     } catch (e) {
         // The code that cancelled the job has already set the status.
         if (!(e instanceof CancelledError)) statusText.textContent = `Error: ${(e as Error).message}`;
@@ -195,6 +228,21 @@ async function upscale() {
     if (job !== jobSeq) return;
     busy = false;
     refresh();
+}
+
+// Sums one pass's timing into the total of every pass.
+function accumulate(total: TimingData, t: TimingData) {
+    total.totalMs += t.totalMs;
+    total.prepareMs += t.prepareMs;
+    total.tileCount += t.tileCount;
+    total.tileExtractMs += t.tileExtractMs;
+    total.uploadMs += t.uploadMs;
+    for (let i = 0; i < t.convLayerMs.length; i++) {
+        total.convLayerMs[i] = (total.convLayerMs[i] ?? 0) + t.convLayerMs[i];
+    }
+    total.deconvMs += t.deconvMs;
+    total.readbackMs += t.readbackMs;
+    total.encodeMs += t.encodeMs;
 }
 
 document.addEventListener('paste', e => {
@@ -230,7 +278,8 @@ window.addEventListener('drop', e => {
 noiseSelect.addEventListener('change', async () => {
     if (await loadModel()) statusText.textContent = 'Model loaded.';
 });
-processBtn.addEventListener('click', upscale);
+processBtn.addEventListener('click', () => upscale(2));
+upscale4xBtn.addEventListener('click', () => upscale(4));
 cancelBtn.addEventListener('click', () => {
     cancel();
     statusText.textContent = 'Cancelled.';
@@ -254,10 +303,52 @@ copyBtn.addEventListener('click', async () => {
     }
 });
 
-compSlider.addEventListener('input', () => {
-    const pct = parseInt(compSlider.value, 10);
-    afterWrap.style.clipPath = `inset(0 ${100 - pct}% 0 0)`;
-});
+const MAG_HALF = 200;
+const MAG_W = MAG_HALF * 2;
+const MAG_H = MAG_HALF;
+const MAG_ZOOM = 5;
+
+function setMagPane(pane: HTMLDivElement, img: HTMLImageElement, rx: number, ry: number) {
+    if (!img.src) {
+        pane.style.backgroundImage = 'none';
+        return;
+    }
+    const bgW = img.naturalWidth * MAG_ZOOM;
+    const bgH = img.naturalHeight * MAG_ZOOM;
+    const bgX = -(rx * bgW - MAG_HALF / 2);
+    const bgY = -(ry * bgH - MAG_H / 2);
+    pane.style.backgroundImage = `url("${img.src}")`;
+    pane.style.backgroundSize = `${bgW}px ${bgH}px`;
+    pane.style.backgroundPosition = `${bgX}px ${bgY}px`;
+}
+
+function onMagMove(e: MouseEvent) {
+    const img = e.currentTarget as HTMLImageElement;
+    const rect = img.getBoundingClientRect();
+    const rx = (e.clientX - rect.left) / rect.width;
+    const ry = (e.clientY - rect.top) / rect.height;
+
+    setMagPane(magOriginal, beforeImg, rx, ry);
+    setMagPane(magUpscaled, afterImg, rx, ry);
+
+    let left = e.clientX + 20;
+    let top = e.clientY - MAG_H / 2;
+    if (left + MAG_W > window.innerWidth) left = e.clientX - MAG_W - 20;
+    top = Math.max(4, Math.min(top, window.innerHeight - MAG_H - 4));
+
+    magnifier.style.left = `${left}px`;
+    magnifier.style.top = `${top}px`;
+    magnifier.classList.remove('is-hidden');
+}
+
+function onMagLeave() {
+    magnifier.classList.add('is-hidden');
+}
+
+beforeImg.addEventListener('mousemove', onMagMove);
+beforeImg.addEventListener('mouseleave', onMagLeave);
+afterImg.addEventListener('mousemove', onMagMove);
+afterImg.addEventListener('mouseleave', onMagLeave);
 
 function formatTiming(t: TimingData): string {
     const total = t.totalMs;

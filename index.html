@@ -11,7 +11,7 @@
 <body>
     <header>
         <h1>waifu2x</h1>
-        <p class="subtitle">Client-side 2x image upscaling powered by WebGL2</p>
+        <p class="subtitle">Client-side 2x and 4x image upscaling powered by WebGL2</p>
     </header>
 
     <main>
@@ -43,6 +43,7 @@
 
             <div class="action-row">
                 <button id="process-btn" disabled>Upscale 2x</button>
+                <button id="upscale-4x-btn" disabled>Upscale 4x</button>
                 <button id="cancel-btn" class="secondary" hidden>Cancel</button>
                 <button id="download-btn" class="secondary" hidden>Download PNG</button>
                 <button id="copy-btn" class="secondary" hidden>Copy to clipboard</button>
@@ -60,21 +61,27 @@
         <div id="timing-section" hidden></div>
 
         <div id="preview-section" hidden>
-            <div class="comparison">
-                <div class="comp-label-row">
-                    <span>Original</span>
-                    <input type="range" id="comp-slider" min="0" max="100" value="100">
-                    <span>Upscaled</span>
+            <div class="preview-grid">
+                <div class="preview-col">
+                    <div class="preview-label">Original</div>
+                    <div class="preview-img-wrap">
+                        <img id="before-img" alt="Original">
+                    </div>
                 </div>
-                <div class="comp-container">
-                    <img id="before-img" alt="Original">
-                    <div id="after-wrap">
+                <div class="preview-col">
+                    <div class="preview-label">Upscaled</div>
+                    <div class="preview-img-wrap">
                         <img id="after-img" alt="Upscaled">
                     </div>
                 </div>
             </div>
         </div>
     </main>
+
+    <div id="magnifier" class="is-hidden">
+        <div id="mag-original"></div>
+        <div id="mag-upscaled"></div>
+    </div>
 
     <footer>
         All processing runs locally in your browser. No data leaves this page.
