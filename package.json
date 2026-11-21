@@ -2,12 +2,11 @@
   "name": "waifu2x-web",
   "version": "1.0.0",
   "private": true,
-  "scripts": {
-    "build": "node build.mjs",
-    "dev": "node build.mjs --dev"
-  },
   "devDependencies": {
-    "esbuild": "^0.25.0",
+    "@types/node": "^22.20.5",
+    "esbuild": "^0.28.1",
+    "playwright-core": "1.63.0",
     "typescript": "^5.8.0"
-  }
+  },
+  "type": "module"
 }

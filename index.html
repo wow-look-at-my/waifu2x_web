@@ -6,53 +6,77 @@
     <meta http-equiv="Content-Security-Policy"
           content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' blob: data:; connect-src 'self'; font-src 'self';">
     <title>waifu2x - Client-Side Image Upscaler</title>
-    <link rel="stylesheet" href="css/style.css?v=6">
+    <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-    <nav id="toolbar">
+    <header>
         <h1>waifu2x</h1>
-        <label>
-            Noise reduction
-            <select id="noise-level">
-                <option value="none">None</option>
-                <option value="1">Low</option>
-                <option value="2" selected>Medium</option>
-                <option value="3">High</option>
-            </select>
-        </label>
-        <button id="upscale-2x-btn" disabled>Upscale 2x</button>
-        <button id="upscale-4x-btn" disabled>Upscale 4x</button>
-        <span id="status-text">Loading...</span>
-        <button id="download-btn" class="is-hidden">Download PNG</button>
-    </nav>
+        <p class="subtitle">Client-side 2x and 4x image upscaling powered by WebGL2</p>
+    </header>
 
-    <div id="progress-track" class="progress-bar-track is-hidden">
-        <div class="progress-bar-fill" id="progress-fill"></div>
-    </div>
-
-    <div id="timing-section" class="is-hidden"></div>
-
-    <div id="preview-section">
-        <div class="preview-grid">
-            <div class="preview-col">
-                <div class="preview-label">Original</div>
-                <div class="preview-img-wrap" id="drop-zone">
-                    <div id="drop-content">
-                        <div class="drop-icon">&#x1F5BC;</div>
-                        <div>Drop image here or click to select</div>
-                    </div>
-                    <img id="before-img" alt="Original" class="is-hidden">
-                    <input type="file" id="file-input" accept="image/*" hidden>
-                </div>
+    <main>
+        <div id="init-section">
+            <div class="progress-bar-track">
+                <div class="progress-bar-fill" id="model-progress-fill"></div>
             </div>
-            <div class="preview-col">
-                <div class="preview-label">Upscaled</div>
-                <div class="preview-img-wrap" id="upscaled-wrap">
-                    <img id="after-img" alt="Upscaled" class="is-hidden">
+        </div>
+
+        <div id="controls-section" hidden>
+            <div id="drop-zone" role="button" tabindex="0">
+                <div class="drop-icon">&#x1F5BC;</div>
+                <div>Drop an image, paste one (Ctrl+V), or click to select</div>
+                <input type="file" id="file-input" accept="image/*" hidden>
+            </div>
+
+            <div class="options-row">
+                <label>
+                    Noise reduction
+                    <select id="noise-level">
+                        <option value="none">None (upscale only)</option>
+                        <option value="1">Low</option>
+                        <option value="2" selected>Medium</option>
+                        <option value="3">High</option>
+                    </select>
+                </label>
+                <span id="dim-info"></span>
+            </div>
+
+            <div class="action-row">
+                <button id="process-btn" disabled>Upscale 2x</button>
+                <button id="upscale-4x-btn" disabled>Upscale 4x</button>
+                <button id="cancel-btn" class="secondary" hidden>Cancel</button>
+                <button id="download-btn" class="secondary" hidden>Download PNG</button>
+                <button id="copy-btn" class="secondary" hidden>Copy to clipboard</button>
+            </div>
+
+            <div id="progress-section" hidden>
+                <div class="progress-bar-track">
+                    <div class="progress-bar-fill" id="progress-fill"></div>
                 </div>
             </div>
         </div>
-    </div>
+
+        <div id="status-text">Loading...</div>
+
+        <div id="timing-section" hidden></div>
+
+        <div id="preview-section" hidden>
+            <div class="preview-grid">
+                <div class="preview-col">
+                    <div class="preview-label">Original</div>
+                    <div class="preview-img-wrap">
+                        <img id="before-img" alt="Original">
+                    </div>
+                </div>
+                <div class="preview-col">
+                    <div class="preview-label">Upscaled</div>
+                    <div class="preview-img-wrap">
+                        <img id="after-img" alt="Upscaled">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
 
     <div id="magnifier" class="is-hidden">
         <div id="mag-original"></div>
@@ -63,6 +87,6 @@
         All processing runs locally in your browser. No data leaves this page.
     </footer>
 
-    <script type="module" src="js/app.js?v=4"></script>
+    <script type="module" src="js/app.js"></script>
 </body>
 </html>
