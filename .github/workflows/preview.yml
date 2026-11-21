@@ -1,39 +1,51 @@
-name: Deploy PR previews
+name: Test and publish site
 
 on:
   push:
-    branches: [master]
-  pull_request:
-    types: [opened, reopened, synchronize, closed]
+    branches: ['**']
 
+concurrency:
+  group: gha_${{ github.repository }}_${{ github.workflow }}_${{ github.ref != 'refs/heads/master' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
+
+# buildhost-publish-site needs each of these. id-token is its login, and pull-requests is for the comment with the site URL.
 permissions:
-  contents: write
-  pages: write
-  pull-requests: write
-  statuses: write
+  contents: read
+  actions: read
+  checks: read
   id-token: write
+  pull-requests: write
+  deployments: write
+  artifact-metadata: write
 
 jobs:
-  build:
+  site:
     runs-on: ${{ github.event.repository.visibility == 'public' && 'ubuntu-latest' || vars.CI_RUNNER || 'ubuntu-latest' }}
-    if: github.event.action != 'closed'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
-      - run: npm run build
-      - uses: actions/upload-artifact@v4
+      - uses: wow-look-at-my/actions@cached-apt#latest
         with:
-          name: build
-          path: ./build/
+          packages: just
+      - run: npm ci
 
-  deploy-preview:
-    needs: build
-    if: always()
-    uses: PazerOP/pr-preview-action/.github/workflows/preview.yml@master
-    with:
-      artifact-name: build
-    secrets: inherit
+      # The Chromium build that playwright-core pins is cached. Its system libraries install each run.
+      - uses: wow-look-at-my/actions@cached-run#latest
+        with:
+          paths: ~/.cache/ms-playwright
+          run: |
+            # ${{ hashFiles('package-lock.json') }}
+            npx playwright-core install chromium
+      - run: npx playwright-core install-deps chromium
+
+      - run: just check
+      - run: just test
+
+      # Each branch publishes to its own site.
+      - uses: wow-look-at-my/buildhost/.github/actions/buildhost-publish-site@lkgb
+        with:
+          branch: ${{ github.ref_name }}
+          source_dir: ./build/
